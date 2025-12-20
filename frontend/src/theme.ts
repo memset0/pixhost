@@ -12,6 +12,9 @@ export const theme = createTheme({
   },
   typography: {
     fontFamily: '"Noto Serif SC", "Source Han Serif SC", "PingFang SC", serif',
+    h6: {
+      fontWeight: 700,
+    },
   },
   shape: {
     borderRadius: 12,
