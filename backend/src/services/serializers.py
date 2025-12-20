@@ -18,6 +18,8 @@ def serialize_image_summary(session, image):
     return {
         "id": image.id,
         "created_at": image.created_at.isoformat() + "Z",
+        "original_filename": image.original_filename,
+        "size_bytes": thumb_data.get("size_bytes") or image.size_bytes,
         "thumbnail": {
             "format": thumb_data["format"],
             "data_base64": thumb_data["data_base64"],
@@ -68,6 +70,7 @@ def serialize_image_detail(image):
         "location": location,
         "exif": exif_entries,
         "tags": [tag.name for tag in image.tags],
+        "size_bytes": image.size_bytes,
         "created_at": image.created_at.isoformat() + "Z",
         "updated_at": image.updated_at.isoformat() + "Z",
         "is_deleted": image.is_deleted,

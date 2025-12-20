@@ -5,6 +5,16 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import {
   Box,
   Grow,
+  Button,
+  ToggleButton,
+  ToggleButtonGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TableContainer,
+  Paper,
   Stack,
   TextField,
   Typography,
@@ -137,7 +147,7 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
         <Box
           sx={{
             position: "relative",
-            borderRadius: 2,
+            borderRadius: 1,
             overflow: "hidden",
             boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
             display: "block",
@@ -210,19 +220,134 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
   );
 };
 
+type ListRowProps = {
+  item: any;
+  copyLink: (url?: string) => void;
+  refetch: () => void;
+};
+
+const ListRow: React.FC<ListRowProps> = ({ item, copyLink, refetch }) => {
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const [fullLoaded, setFullLoaded] = useState(false);
+
+  useEffect(() => {
+    setThumbLoaded(false);
+    setFullLoaded(false);
+  }, [item.id]);
+
+  const sizeText = item.size_bytes ? `${(item.size_bytes / 1024).toFixed(1)} KB` : "--";
+  const created = item.created_at ? new Date(item.created_at).toLocaleString() : "--";
+  const isDeleted = item.is_deleted;
+
+  return (
+    <TableRow hover>
+      <TableCell align="center">{item.id}</TableCell>
+      <TableCell align="center">
+        <Box
+          component={RouterLink as any}
+          to={`/images/${item.id}`}
+          sx={{
+            position: "relative",
+            display: "inline-block",
+            width: 140,
+            height: 90,
+            borderRadius: 1,
+            overflow: "hidden",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          }}
+        >
+          <Box
+            component="img"
+            src={`data:image/${item.thumbnail.format};base64,${item.thumbnail.data_base64}`}
+            alt={`thumb-${item.id}`}
+            onLoad={() => setThumbLoaded(true)}
+            loading="lazy"
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              filter: fullLoaded ? "blur(0px)" : "blur(1px)",
+              transition: "filter 180ms ease",
+            }}
+          />
+          {thumbLoaded && (
+            <Box
+              component="img"
+              src={item.public_url}
+              alt={`image-${item.id}`}
+              loading="lazy"
+              onLoad={() => setFullLoaded(true)}
+              sx={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                opacity: fullLoaded ? 1 : 0,
+                transition: "opacity 200ms ease",
+              }}
+            />
+          )}
+        </Box>
+      </TableCell>
+      <TableCell align="center">{item.original_filename || "--"}</TableCell>
+      <TableCell align="center">{sizeText}</TableCell>
+      <TableCell align="center">{created}</TableCell>
+      <TableCell align="center">
+        <Stack direction="row" spacing={1} justifyContent="center">
+          <Button size="small" variant="outlined" onClick={() => copyLink(item.public_url)}>
+            复制链接
+          </Button>
+          {!isDeleted && (
+            <Button
+              size="small"
+              color="error"
+              variant="outlined"
+              onClick={async () => {
+                await api.delete(`/images/${item.id}`);
+                refetch();
+              }}
+            >
+              删除
+            </Button>
+          )}
+          {isDeleted && (
+            <Button
+              size="small"
+              color="success"
+              variant="outlined"
+              onClick={async () => {
+                await api.post(`/images/${item.id}/restore`);
+                refetch();
+              }}
+            >
+              恢复
+            </Button>
+          )}
+        </Stack>
+      </TableCell>
+    </TableRow>
+  );
+};
+
 const BrowsePage: React.FC = () => {
   const [tags, setTags] = useState("");
   const [tagMode, setTagMode] = useState("all");
   const [notice, setNotice] = useState("");
+  const [layout, setLayout] = useState<"waterfall" | "list">(() => {
+    const cached = localStorage.getItem("browse_layout");
+    return cached === "list" ? "list" : "waterfall";
+  });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const waterfallRef = useRef<HTMLDivElement | null>(null);
   const theme = useTheme();
   const upSm = useMediaQuery(theme.breakpoints.up("sm"));
   const upMd = useMediaQuery(theme.breakpoints.up("md"));
-  const cols = upMd ? 3 : upSm ? 2 : 1;
+  const upLg = useMediaQuery(theme.breakpoints.up("lg"));
+  const upXl = useMediaQuery(theme.breakpoints.up("xl"));
+  const cols = upXl ? 5 : upLg ? 4 : upMd ? 3 : upSm ? 2 : 1;
   const [columnWidth, setColumnWidth] = useState(0);
   const [metas, setMetas] = useState<Record<string, WaterfallMeta>>({});
-  const loadOrderRef = useRef(0);
   const reflowedColsRef = useRef(cols);
 
   const query = useInfiniteQuery({
@@ -254,12 +379,18 @@ const BrowsePage: React.FC = () => {
   }, [query.hasNextPage, query.isFetchingNextPage]);
 
   // 任务：图片无固定高度，保持原始宽高比并按最矮列放置，列变化时重新分配
-  // 方案：记录图片加载得到的宽高比，计算列宽，按加载顺序把已加载图片落到当前高度最矮的列；列数变化时整体按顺序重排；所有展示节点使用 Grow 动画出现
+  // 方案：记录图片加载得到的宽高比，计算列宽，按数据顺序把已加载图片落到当前高度最矮的列（同高取最左），列数变化时整体按顺序重排；所有展示节点使用 Grow 动画出现
   useEffect(() => {
     const nextMetas: Record<string, WaterfallMeta> = {};
-    items.forEach((item: any) => {
+    items.forEach((item: any, index: number) => {
       const existing = metas[item.id];
-      nextMetas[item.id] = existing ?? { aspect: 1, loaded: false, column: null, order: null };
+      nextMetas[item.id] = existing
+        ? existing
+        : { aspect: 1, loaded: false, column: null, order: index };
+      // 确保顺序稳定：列表顺序即分配顺序
+      if (existing && existing.order === null) {
+        nextMetas[item.id] = { ...existing, order: index };
+      }
     });
     setMetas(nextMetas);
   }, [items]);
@@ -299,7 +430,7 @@ const BrowsePage: React.FC = () => {
       setMetas((prev) => {
         const meta = prev[id];
         if (!meta) return prev;
-        const order = meta.order ?? loadOrderRef.current++;
+        const order = meta.order ?? 0;
         const aspect = height && width ? height / width : 1;
 
         if (!columnWidth || cols === 0) {
@@ -323,6 +454,10 @@ const BrowsePage: React.FC = () => {
     },
     [columnWidth, cols]
   );
+
+  useEffect(() => {
+    localStorage.setItem("browse_layout", layout);
+  }, [layout]);
 
   const columns = useMemo(() => {
     const result = Array.from({ length: cols }, () => [] as any[]);
@@ -355,45 +490,96 @@ const BrowsePage: React.FC = () => {
             label="模式"
             onChange={(event) => setTagMode(event.target.value)}
           >
-            <MenuItem value="all">全部</MenuItem>
-            <MenuItem value="any">任意</MenuItem>
+            <MenuItem value="all">AND</MenuItem>
+            <MenuItem value="any">OR</MenuItem>
           </Select>
         </FormControl>
+        <ToggleButtonGroup
+          exclusive
+          value={layout}
+          onChange={(_, value) => value && setLayout(value)}
+          size="small"
+        >
+          <ToggleButton value="waterfall">瀑布流</ToggleButton>
+          <ToggleButton value="list">列表</ToggleButton>
+        </ToggleButtonGroup>
       </Stack>
 
-      <Box
-        ref={waterfallRef}
-        sx={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-          columnGap: 2,
-          rowGap: 2,
-        }}
-      >
-        {columns.map((columnItems, columnIndex) => (
-          <Stack key={`col-${columnIndex}`} spacing={2}>
-            {columnItems.map((item: any) => {
-              const meta = metas[item.id];
-              if (!meta) return null;
-              return (
-                <WaterfallCard
-                  key={`${item.id}-${cols}-${meta?.column ?? "c"}-${meta?.order ?? "o"}`}
-                  item={item}
-                  meta={meta}
-                  columnWidth={columnWidth}
-                  cols={cols}
-                  copyLink={copyLink}
-                />
-              );
-            })}
-          </Stack>
-        ))}
-      </Box>
-      {items.map((item: any) => {
-        const meta = metas[item.id];
-        if (meta?.loaded) return null;
-        return <ImageLoader key={`loader-${item.id}`} id={item.id} src={item.public_url} onLoad={handleImageLoad} />;
-      })}
+      {layout === "waterfall" && (
+        <>
+          <Box
+            ref={waterfallRef}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              columnGap: 2,
+              rowGap: 2,
+            }}
+          >
+            {columns.map((columnItems, columnIndex) => (
+              <Stack key={`col-${columnIndex}`} spacing={2}>
+                {columnItems.map((item: any) => {
+                  const meta = metas[item.id];
+                  if (!meta) return null;
+                  return (
+                    <WaterfallCard
+                      key={`${item.id}-${cols}-${meta?.column ?? "c"}-${meta?.order ?? "o"}`}
+                      item={item}
+                      meta={meta}
+                      columnWidth={columnWidth}
+                      cols={cols}
+                      copyLink={copyLink}
+                    />
+                  );
+                })}
+              </Stack>
+            ))}
+          </Box>
+          {items.map((item: any) => {
+            const meta = metas[item.id];
+            if (meta?.loaded) return null;
+            return <ImageLoader key={`loader-${item.id}`} id={item.id} src={item.public_url} onLoad={handleImageLoad} />;
+          })}
+        </>
+      )}
+
+      {layout === "list" && (
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{ backgroundColor: "transparent", boxShadow: "none" }}
+        >
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  ID
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  图片
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  原始文件名
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  大小
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  上传时间
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  操作
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.map((item: any) => (
+                <ListRow key={item.id} item={item} copyLink={copyLink} refetch={query.refetch} />
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
       {items.length === 0 && !query.isLoading && (
         <Typography variant="body1" color="text.secondary">
           暂无图片，先去上传吧。

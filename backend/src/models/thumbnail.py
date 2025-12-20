@@ -2,7 +2,7 @@
 # 方案：以 1:1 关系存储格式、尺寸与 base64 字符串
 
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Integer, String, Text, DateTime, ForeignKey, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.db import Base
@@ -15,6 +15,7 @@ class ImageThumbnail(Base):
     format: Mapped[str] = mapped_column(String(16), nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     width: Mapped[int] = mapped_column(Integer, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=True)
     data_base64: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 

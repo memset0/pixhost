@@ -24,4 +24,8 @@ def backup_original(image):
 
 def after_edit(session, image):
     image.updated_at = datetime.utcnow()
+    cfg = get_config()
+    file_path = resolve_path(cfg["storage"]["root_dir"]) / image.storage_relpath
+    if file_path.exists():
+        image.size_bytes = file_path.stat().st_size
     invalidate_thumbnail(session, image)

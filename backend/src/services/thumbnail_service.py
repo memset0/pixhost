@@ -20,16 +20,19 @@ def upsert_thumbnail(session, image):
             "format": image.thumbnail.format,
             "width": image.thumbnail.width,
             "height": image.thumbnail.height,
+            "size_bytes": image.thumbnail.size_bytes,
             "data_base64": image.thumbnail.data_base64,
         }
 
     image_path = resolve_path(cfg["storage"]["root_dir"]) / image.storage_relpath
     data = generate_thumbnail(image_path, max_edge, max_bytes, output_format, quality)
+    size_bytes = image_path.stat().st_size
 
     if image.thumbnail:
         image.thumbnail.format = data["format"]
         image.thumbnail.width = data["width"]
         image.thumbnail.height = data["height"]
+        image.thumbnail.size_bytes = size_bytes
         image.thumbnail.data_base64 = data["data_base64"]
     else:
         thumb = ImageThumbnail(
@@ -37,11 +40,12 @@ def upsert_thumbnail(session, image):
             format=data["format"],
             width=data["width"],
             height=data["height"],
+            size_bytes=size_bytes,
             data_base64=data["data_base64"],
         )
         session.add(thumb)
 
-    return data
+    return {**data, "size_bytes": size_bytes}
 
 
 def invalidate_thumbnail(session, image):
