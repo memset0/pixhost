@@ -30,7 +30,7 @@ connexion_app.add_api(
 )
 # 任务：分别暴露 Flask 实例用于错误处理，以及 ASGI 应用供 uvicorn 启动
 flask_app = connexion_app.app
-app = connexion_app.middleware
+app = connexion_app
 
 
 # 错误处理挂在 Flask 应用上，Connexion 调用的视图会复用该处理
@@ -51,6 +51,8 @@ def bootstrap():
     init_db()
     with session_scope() as session:
         ensure_admin(session)
+    # 任务：提前构建中间件栈，使蓝图注册到 flask_app，便于 test_client 与 uvicorn 访问
+    app.middleware.app, app.middleware.middleware_stack = app.middleware._build_middleware_stack()
 
 
 bootstrap()

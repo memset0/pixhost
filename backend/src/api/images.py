@@ -56,14 +56,13 @@ def list_images(page: int = 1, page_size: int = None, tags: str = None, tag_mode
         }
 
 
-def upload_image():
+def upload_image(file, tags: str = ""):
     with session_scope() as session:
         current = get_current_user(session)
         require_role(current, ["user", "admin"])
 
-        file_storage = request.files.get("file")
-        tags_value = request.form.get("tags", "")
-        image = save_upload(session, file_storage, current, tags_value, request.content_length)
+        content_length = int(request.headers.get("Content-Length", 0))
+        image = save_upload(session, file, current, tags or "", content_length)
 
         auth_header = request.headers.get("Authorization", "")
         token = ""
@@ -118,8 +117,8 @@ def get_thumbnail(image_id: int):
         return {"format": data["format"], "data_base64": data["data_base64"]}
 
 
-def update_tags(image_id: int):
-    payload = request.get_json(silent=True) or {}
+def update_tags(image_id: int, body: dict):
+    payload = body or {}
     tags = payload.get("tags")
     if not isinstance(tags, list):
         raise ApiError(400, ERROR_VALIDATION, "tags must be list")
@@ -137,8 +136,8 @@ def update_tags(image_id: int):
         return {"status": "ok"}
 
 
-def edit_crop(image_id: int):
-    payload = request.get_json(silent=True) or {}
+def edit_crop(image_id: int, body: dict):
+    payload = body or {}
     ratios = {
         "top": float(payload.get("top", 0)),
         "bottom": float(payload.get("bottom", 0)),
@@ -166,8 +165,8 @@ def edit_crop(image_id: int):
         return {"status": "ok"}
 
 
-def edit_hue(image_id: int):
-    payload = request.get_json(silent=True) or {}
+def edit_hue(image_id: int, body: dict):
+    payload = body or {}
     delta = float(payload.get("delta", 0))
     if delta < -180 or delta > 180:
         raise ApiError(400, ERROR_VALIDATION, "delta out of range")

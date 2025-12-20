@@ -3,7 +3,6 @@
 
 import re
 from datetime import datetime
-from connexion import request
 
 from src.core.db import session_scope
 from src.core.errors import ApiError, ERROR_VALIDATION, ERROR_CONFLICT, ERROR_UNAUTHORIZED
@@ -27,8 +26,8 @@ def _validate_register(data):
     return username, email, password
 
 
-def register():
-    payload = request.get_json(silent=True) or {}
+def register(body):
+    payload = body or {}
     username, email, password = _validate_register(payload)
 
     with session_scope() as session:
@@ -50,8 +49,8 @@ def register():
         return {"id": user.id, "role": user.role}
 
 
-def login():
-    payload = request.get_json(silent=True) or {}
+def login(body):
+    payload = body or {}
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
 

@@ -1,8 +1,6 @@
 # 任务：管理员审批与角色管理接口
 # 方案：限制 admin 角色访问，并进行分页查询
 
-from connexion import request
-
 from src.core.db import session_scope
 from src.core.auth import get_current_user, require_role
 from src.core.config_loader import get_config
@@ -50,8 +48,8 @@ def approve_user(user_id: int):
         return serialize_user(user)
 
 
-def set_role(user_id: int):
-    payload = request.get_json(silent=True) or {}
+def set_role(user_id: int, body: dict):
+    payload = body or {}
     role = payload.get("role")
     if role not in ["user", "admin"]:
         raise ApiError(400, ERROR_VALIDATION, "invalid role")

@@ -1,8 +1,6 @@
 # 任务：提供当前用户信息与修改密码功能
 # 方案：从 JWT 解析用户并校验旧密码
 
-from connexion import request
-
 from src.core.db import session_scope
 from src.core.auth import get_current_user
 from src.core.errors import ApiError, ERROR_VALIDATION
@@ -16,8 +14,8 @@ def me():
         return serialize_user(user)
 
 
-def change_password():
-    payload = request.get_json(silent=True) or {}
+def change_password(body: dict):
+    payload = body or {}
     old_password = payload.get("old_password") or ""
     new_password = payload.get("new_password") or ""
     if len(new_password.encode("utf-8")) < 6:
