@@ -19,4 +19,18 @@ export const theme = createTheme({
   shape: {
     borderRadius: 12,
   },
+  // 任务：确保卡片内容在所有位置都使用统一内边距，并移除 extra padding-bottom
+  // 方案：通过 MuiCardContent 的 styleOverrides 把根节点 padding 设为 16 并把最后一项的 padding-bottom 也固定为 16
+  components: {
+    MuiCardContent: {
+      styleOverrides: {
+        root: {
+          padding: 16,
+          "&:last-child": {
+            paddingBottom: 16,
+          },
+        },
+      },
+    },
+  },
 });

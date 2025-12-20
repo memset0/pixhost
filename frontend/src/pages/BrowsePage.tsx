@@ -6,7 +6,6 @@ import {
   Box,
   ImageList,
   ImageListItem,
-  Skeleton,
   Stack,
   TextField,
   Typography,
@@ -36,6 +35,92 @@ const fetchImages = async (page: number, tags: string, tagMode: string) => {
     },
   });
   return response.data;
+};
+
+// 任务：卡片图片使用占位符->缩略图->原图的三段式加载，替换掉骨架屏
+// 方案：先显示柔和渐变背景占位，缩略图 onLoad 后淡入，再预加载 public_url 原图并以透明度过渡覆盖
+type ProgressiveImageProps = {
+  thumbnail: { format: string; data_base64: string };
+  fullSrc: string;
+  alt: string;
+};
+
+const ProgressiveImage: React.FC<ProgressiveImageProps> = ({ thumbnail, fullSrc, alt }) => {
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const [fullLoaded, setFullLoaded] = useState(false);
+  const thumbSrc = useMemo(() => `data:image/${thumbnail.format};base64,${thumbnail.data_base64}`, [thumbnail]);
+
+  useEffect(() => {
+    setThumbLoaded(false);
+    setFullLoaded(false);
+  }, [thumbSrc, fullSrc]);
+
+  useEffect(() => {
+    if (!thumbLoaded) return;
+    const img = new Image();
+    img.src = fullSrc;
+    img.onload = () => setFullLoaded(true);
+    return () => {
+      img.onload = null;
+    };
+  }, [thumbLoaded, fullSrc]);
+
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: "100%",
+        height: 200,
+        borderRadius: 2,
+        overflow: "hidden",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        background: "linear-gradient(120deg, #f3ede4 0%, #e6d9c8 100%)",
+      }}
+    >
+      <Box
+        sx={{
+          position: "absolute",
+          inset: 0,
+          opacity: thumbLoaded ? 0 : 1,
+          transition: "opacity 200ms ease",
+          background: "linear-gradient(135deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08))",
+        }}
+      />
+      <Box
+        component="img"
+        src={thumbSrc}
+        alt={alt}
+        onLoad={() => setThumbLoaded(true)}
+        sx={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          filter: fullLoaded ? "blur(0px)" : "blur(2px)",
+          opacity: thumbLoaded && !fullLoaded ? 1 : 0,
+          transition: "opacity 220ms ease, filter 220ms ease",
+        }}
+      />
+      {thumbLoaded && (
+        <Box
+          component="img"
+          src={fullSrc}
+          alt={alt}
+          onLoad={() => setFullLoaded(true)}
+          sx={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: fullLoaded ? 1 : 0,
+            transition: "opacity 260ms ease",
+          }}
+        />
+      )}
+    </Box>
+  );
 };
 
 const BrowsePage: React.FC = () => {
@@ -110,14 +195,6 @@ const BrowsePage: React.FC = () => {
         </FormControl>
       </Stack>
 
-      {query.isLoading && (
-        <Stack spacing={2}>
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} variant="rectangular" height={200} />
-          ))}
-        </Stack>
-      )}
-
       <ImageList variant="masonry" cols={cols} gap={16} sx={{ m: 0 }}>
         {items.map((item: any) => (
           <ImageListItem
@@ -147,19 +224,7 @@ const BrowsePage: React.FC = () => {
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Box
-              component="img"
-              src={`data:image/${item.thumbnail.format};base64,${item.thumbnail.data_base64}`}
-              alt={`image-${item.id}`}
-              loading="lazy"
-              sx={{
-                width: "100%",
-                height: 200,
-                objectFit: "cover",
-                borderRadius: 2,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-              }}
-            />
+            <ProgressiveImage thumbnail={item.thumbnail} fullSrc={item.public_url} alt={`image-${item.id}`} />
             <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
               {item.tags.slice(0, 3).map((tag: string) => (
                 <Chip key={tag} label={tag} size="small" />

@@ -2,7 +2,7 @@
 // 方案：拉取 /images/{id} 元数据，并使用 blob 显示原图
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Alert, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useParams } from 'react-router-dom';
@@ -101,7 +101,7 @@ const ImageDetailPage: React.FC = () => {
     if (!link) return;
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(link);
-      setNotice('已复制外链');
+      setNotice('已复制图片链接');
       return;
     }
     const textarea = document.createElement('textarea');
@@ -110,7 +110,7 @@ const ImageDetailPage: React.FC = () => {
     textarea.select();
     document.execCommand('copy');
     document.body.removeChild(textarea);
-    setNotice('已复制外链');
+    setNotice('已复制图片链接');
   };
 
   const removeImage = async () => {
@@ -131,128 +131,157 @@ const ImageDetailPage: React.FC = () => {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4" sx={{ fontWeight: 700 }}>
-        图片详情
-      </Typography>
-      {notice && <Alert severity="success">{notice}</Alert>}
+      <Stack spacing={2} direction="row" alignItems="center">
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          图片详情
+        </Typography>
+        {data.is_deleted && <Chip label="已删除" color="warning" />}
+      </Stack>
 
-      <Card>
-        <CardContent>
-          {fileUrl && <Box component="img" src={fileUrl} alt="detail" sx={{ width: '100%', borderRadius: 2 }} />}
-          <Stack direction="row" spacing={2}>
-            <Button variant="text" startIcon={<ContentCopyIcon />} sx={{ mt: 1 }} onClick={copyPublicLink}>
-              复制外链
-            </Button>
-            {isOwner && !data.is_deleted && (
-              <Button variant="contained" color="error" onClick={removeImage}>
-                删除
-              </Button>
-            )}
-            {isOwner && data.is_deleted && (
-              <Button variant="outlined" onClick={restoreImage}>
-                恢复图片
-              </Button>
-            )}
-            {data.is_deleted && <Chip label="已删除" color="warning" />}
-          </Stack>
-        </CardContent>
-      </Card>
+      {/* 任务：按照新需求改造详情页布局，实现大屏 9:3 分栏、小屏上层右栏的排布 */}
+      {/* 方案：使用 flex 布局控制 order 与比例，右侧内容按需求逐项展开 */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 2,
+        }}
+      >
+        <Box
+          sx={{
+            flex: '3 1 0',
+            order: { xs: 2, md: 1 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Card>
+            <CardContent>{fileUrl && <Box component="img" src={fileUrl} alt="detail" sx={{ width: '100%', borderRadius: 1 }} />}</CardContent>
+          </Card>
 
-      {isOwner && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              标签管理
-            </Typography>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField label="自定义标签 (逗号分隔)" value={tagInput} onChange={(event) => setTagInput(event.target.value)} fullWidth />
-              <Button variant="contained" onClick={updateTags}>
-                更新标签
-              </Button>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
-
-      {isOwner && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              编辑
-            </Typography>
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>裁剪</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <TextField label="上 (0-100%)" type="number" value={cropValues.top} onChange={(event) => setCropValues({ ...cropValues, top: Number(event.target.value) })} />
-                    <TextField label="下 (0-100%)" type="number" value={cropValues.bottom} onChange={(event) => setCropValues({ ...cropValues, bottom: Number(event.target.value) })} />
-                    <TextField label="左 (0-100%)" type="number" value={cropValues.left} onChange={(event) => setCropValues({ ...cropValues, left: Number(event.target.value) })} />
-                    <TextField label="右 (0-100%)" type="number" value={cropValues.right} onChange={(event) => setCropValues({ ...cropValues, right: Number(event.target.value) })} />
-                  </Stack>
-                  <Button variant="contained" onClick={applyCrop}>
-                    提交裁剪
-                  </Button>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>色调</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  <Slider value={hue} min={-180} max={180} valueLabelDisplay="auto" onChange={(_, value) => setHue(value as number)} />
-                  <Button variant="contained" onClick={applyHue}>
-                    提交色调调整
-                  </Button>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            基础信息
-          </Typography>
-          <Stack spacing={1}>
-            <Typography>上传者：{data.uploader?.username || ''}</Typography>
-            <Typography>上传时间：{data.created_at}</Typography>
-            <Typography>更新时间：{data.updated_at}</Typography>
-            {data.dimensions && (
-              <Typography>
-                尺寸：{data.dimensions.width} x {data.dimensions.height}
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                基础信息
               </Typography>
-            )}
-            {data.capture_time?.taken_at && <Typography>拍摄时间：{data.capture_time.taken_at}</Typography>}
-            {data.location?.latitude !== null && data.location?.latitude !== undefined && (
-              <Typography>
-                地点：{data.location.latitude}, {data.location.longitude}
-              </Typography>
-            )}
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {data.tags?.map((tag: string) => (
-                <Chip key={tag} label={tag} size="small" />
-              ))}
-            </Stack>
-            {data.exif?.length > 0 && (
               <Stack spacing={1}>
-                <Typography sx={{ fontWeight: 600 }}>EXIF 信息</Typography>
-                {data.exif.slice(0, 6).map((entry: any) => (
-                  <Typography key={entry.key} variant="body2">
-                    {entry.key}: {entry.value}
+                <Typography>上传者：{data.uploader?.username || ''}</Typography>
+                <Typography>上传时间：{data.created_at}</Typography>
+                <Typography>更新时间：{data.updated_at}</Typography>
+                {data.dimensions && (
+                  <Typography>
+                    尺寸：{data.dimensions.width} x {data.dimensions.height}
                   </Typography>
-                ))}
+                )}
+                {data.capture_time?.taken_at && <Typography>拍摄时间：{data.capture_time.taken_at}</Typography>}
+                {data.location?.latitude !== null && data.location?.latitude !== undefined && (
+                  <Typography>
+                    地点：{data.location.latitude}, {data.location.longitude}
+                  </Typography>
+                )}
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {data.tags?.map((tag: string) => (
+                    <Chip key={tag} label={tag} size="small" />
+                  ))}
+                </Stack>
+                {data.exif?.length > 0 && (
+                  <Stack spacing={1}>
+                    <Typography sx={{ fontWeight: 600 }}>EXIF 信息</Typography>
+                    {data.exif.slice(0, 6).map((entry: any) => (
+                      <Typography key={entry.key} variant="body2">
+                        {entry.key}: {entry.value}
+                      </Typography>
+                    ))}
+                  </Stack>
+                )}
               </Stack>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {isOwner && (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  编辑
+                </Typography>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>裁剪</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                        <TextField label="上 (0-100%)" type="number" value={cropValues.top} onChange={(event) => setCropValues({ ...cropValues, top: Number(event.target.value) })} />
+                        <TextField label="下 (0-100%)" type="number" value={cropValues.bottom} onChange={(event) => setCropValues({ ...cropValues, bottom: Number(event.target.value) })} />
+                        <TextField label="左 (0-100%)" type="number" value={cropValues.left} onChange={(event) => setCropValues({ ...cropValues, left: Number(event.target.value) })} />
+                        <TextField label="右 (0-100%)" type="number" value={cropValues.right} onChange={(event) => setCropValues({ ...cropValues, right: Number(event.target.value) })} />
+                      </Stack>
+                      <Button variant="contained" onClick={applyCrop}>
+                        提交裁剪
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>色调</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      <Slider value={hue} min={-180} max={180} valueLabelDisplay="auto" onChange={(_, value) => setHue(value as number)} />
+                      <Button variant="contained" onClick={applyHue}>
+                        提交色调调整
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              </CardContent>
+            </Card>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            flex: '1 1 0',
+            order: { xs: 1, md: 2 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          {/* 任务：右栏逐个展示复制/删除/标签操作，按钮/textarea 各占一行 */}
+          <Button variant="contained" onClick={copyPublicLink} fullWidth>
+            复制外链
+          </Button>
+
+          {isOwner && !data.is_deleted && (
+            <Button variant="contained" color="error" onClick={removeImage} fullWidth>
+              删除图片
+            </Button>
+          )}
+          {isOwner && data.is_deleted && (
+            <Button variant="outlined" onClick={restoreImage} fullWidth>
+              恢复图片
+            </Button>
+          )}
+
+          {isOwner && (
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <TextField label="自定义标签 (逗号分隔)" value={tagInput} onChange={(event) => setTagInput(event.target.value)} fullWidth multiline minRows={3} />
+                  <Button variant="contained" onClick={updateTags} fullWidth>
+                    更新标签
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+        </Box>
+      </Box>
+
+      <Snackbar open={Boolean(notice)} autoHideDuration={2000} message={notice} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Stack>
   );
 };
