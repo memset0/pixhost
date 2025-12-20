@@ -292,6 +292,23 @@ components:
         delta:
           type: number
       required: [delta]
+    EditPreviewRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [crop, hue]
+        top:
+          type: number
+        bottom:
+          type: number
+        left:
+          type: number
+        right:
+          type: number
+        delta:
+          type: number
+      required: [mode]
     AiAnalyzeResponse:
       type: object
       properties:
@@ -883,6 +900,43 @@ paths:
                 properties:
                   status:
                     type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/edit/preview:
+    post:
+      operationId: src.api.images.preview_edit
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditPreviewRequest'
+      responses:
+        '200':
+          description: Preview image with pending edits applied
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
         '403':
           description: Forbidden
           content:

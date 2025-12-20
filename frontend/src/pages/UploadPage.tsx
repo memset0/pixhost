@@ -92,14 +92,16 @@ const UploadPage: React.FC = () => {
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
       >
-        <CardContent sx={{ textAlign: 'center', py: 8 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            拖拽图片到这里或点击选择文件
-          </Typography>
-          <Button variant="contained" onClick={() => inputRef.current?.click()}>
-            选择文件
-          </Button>
-          <input ref={inputRef} type="file" multiple hidden accept="image/*" onChange={(event) => handleFiles(event.target.files)} />
+        <CardContent sx={{ textAlign: 'center' }}>
+          <Box sx={{ py: 12 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              拖拽图片到这里或点击选择文件
+            </Typography>
+            <Button variant="contained" onClick={() => inputRef.current?.click()}>
+              选择文件
+            </Button>
+            <input ref={inputRef} type="file" multiple hidden accept="image/*" onChange={(event) => handleFiles(event.target.files)} />
+          </Box>
         </CardContent>
       </Card>
 

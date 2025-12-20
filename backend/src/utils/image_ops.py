@@ -35,22 +35,43 @@ def _save_with_quality(img, output_format: str, quality: int) -> bytes:
 
 def crop_image(image_path, ratios: dict):
     with Image.open(image_path) as img:
-        width, height = img.size
-        left_px = int(width * ratios["left"] / 100)
-        right_px = int(width * (1 - ratios["right"] / 100))
-        top_px = int(height * ratios["top"] / 100)
-        bottom_px = int(height * (1 - ratios["bottom"] / 100))
-        if left_px >= right_px or top_px >= bottom_px:
-            raise ValueError("invalid crop ratios")
-        cropped = img.crop((left_px, top_px, right_px, bottom_px))
+        cropped = _apply_crop(img, ratios)
         cropped.save(image_path)
 
 
 def adjust_hue(image_path, delta: float):
     with Image.open(image_path) as img:
-        hsv = img.convert("HSV")
-        h, s, v = hsv.split()
-        shift = int((delta / 360.0) * 255) % 256
-        h = h.point(lambda x: (x + shift) % 256)
-        merged = Image.merge("HSV", (h, s, v)).convert("RGB")
+        merged = _apply_hue(img, delta)
         merged.save(image_path)
+
+
+def build_edit_preview(image_path, mode: str, ratios: dict = None, delta: float = None):
+    with Image.open(image_path) as img:
+        working = img.convert("RGB")
+        if mode == "crop":
+            working = _apply_crop(working, ratios or {})
+        elif mode == "hue":
+            working = _apply_hue(working, delta or 0)
+        buffer = BytesIO()
+        working.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer, working.size
+
+
+def _apply_crop(img, ratios: dict):
+    width, height = img.size
+    left_px = int(width * ratios["left"] / 100)
+    right_px = int(width * (1 - ratios["right"] / 100))
+    top_px = int(height * ratios["top"] / 100)
+    bottom_px = int(height * (1 - ratios["bottom"] / 100))
+    if left_px >= right_px or top_px >= bottom_px:
+        raise ValueError("invalid crop ratios")
+    return img.crop((left_px, top_px, right_px, bottom_px))
+
+
+def _apply_hue(img, delta: float):
+    hsv = img.convert("HSV")
+    h, s, v = hsv.split()
+    shift = int((delta / 360.0) * 255) % 256
+    h = h.point(lambda x: (x + shift) % 256)
+    return Image.merge("HSV", (h, s, v)).convert("RGB")

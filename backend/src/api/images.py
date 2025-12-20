@@ -23,7 +23,7 @@ from src.services.serializers import serialize_image_summary, serialize_image_de
 from src.services.thumbnail_service import upsert_thumbnail
 from src.services.edit_service import backup_original, after_edit
 from src.utils.path_utils import resolve_path
-from src.utils.image_ops import crop_image, adjust_hue
+from src.utils.image_ops import crop_image, adjust_hue, build_edit_preview
 
 
 # 任务：根据存储相对路径构造可对外复制的访问链接
@@ -45,6 +45,31 @@ def _build_public_image_url(image) -> str:
 # 方案：统一补零格式，确保与 build_storage_relpath 生成的格式一致
 def _compose_storage_relpath(year: int, month: int, day: int, filename: str) -> str:
     return f"{int(year):04d}/{int(month):02d}/{int(day):02d}/{filename}"
+
+
+def _parse_crop_ratios(payload: dict) -> dict:
+    ratios = {
+        "top": float(payload.get("top", 0)),
+        "bottom": float(payload.get("bottom", 0)),
+        "left": float(payload.get("left", 0)),
+        "right": float(payload.get("right", 0)),
+    }
+    for key, value in ratios.items():
+        if value < 0 or value > 100:
+            raise ApiError(400, ERROR_VALIDATION, f"{key} out of range")
+    if (
+        ratios["left"] + ratios["right"] >= 100
+        or ratios["top"] + ratios["bottom"] >= 100
+    ):
+        raise ApiError(400, ERROR_VALIDATION, "crop ratios too large")
+    return ratios
+
+
+def _parse_hue_delta(payload: dict) -> float:
+    delta = float(payload.get("delta", 0))
+    if delta < -180 or delta > 180:
+        raise ApiError(400, ERROR_VALIDATION, "delta out of range")
+    return delta
 
 
 def list_images(
@@ -203,22 +228,38 @@ def update_tags(image_id: int, body: dict):
         return {"status": "ok"}
 
 
+# 任务：支持编辑预览，避免落盘且与提交参数一致
+# 方案：新增 preview 接口按模式在内存中处理图片并返回 PNG
+def preview_edit(image_id: int, body: dict):
+    payload = body or {}
+    mode = payload.get("mode")
+    if mode not in ["crop", "hue"]:
+        raise ApiError(400, ERROR_VALIDATION, "mode must be crop or hue")
+
+    with session_scope() as session:
+        current = get_current_user(session)
+        require_role(current, ["user", "admin"])
+
+        image = get_image_or_404(session, image_id)
+        require_owner(current, image)
+
+        cfg = get_config()
+        file_path = resolve_path(cfg["storage"]["root_dir"]) / image.storage_relpath
+        if not file_path.exists():
+            raise ApiError(404, ERROR_NOT_FOUND, "file not found")
+
+        if mode == "crop":
+            ratios = _parse_crop_ratios(payload)
+            buffer, _ = build_edit_preview(file_path, "crop", ratios=ratios)
+        else:
+            delta = _parse_hue_delta(payload)
+            buffer, _ = build_edit_preview(file_path, "hue", delta=delta)
+        return send_file(buffer, mimetype="image/png")
+
+
 def edit_crop(image_id: int, body: dict):
     payload = body or {}
-    ratios = {
-        "top": float(payload.get("top", 0)),
-        "bottom": float(payload.get("bottom", 0)),
-        "left": float(payload.get("left", 0)),
-        "right": float(payload.get("right", 0)),
-    }
-    for key, value in ratios.items():
-        if value < 0 or value > 100:
-            raise ApiError(400, ERROR_VALIDATION, f"{key} out of range")
-    if (
-        ratios["left"] + ratios["right"] >= 100
-        or ratios["top"] + ratios["bottom"] >= 100
-    ):
-        raise ApiError(400, ERROR_VALIDATION, "crop ratios too large")
+    ratios = _parse_crop_ratios(payload)
 
     with session_scope() as session:
         current = get_current_user(session)
@@ -237,9 +278,7 @@ def edit_crop(image_id: int, body: dict):
 
 def edit_hue(image_id: int, body: dict):
     payload = body or {}
-    delta = float(payload.get("delta", 0))
-    if delta < -180 or delta > 180:
-        raise ApiError(400, ERROR_VALIDATION, "delta out of range")
+    delta = _parse_hue_delta(payload)
 
     with session_scope() as session:
         current = get_current_user(session)
