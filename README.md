@@ -18,7 +18,7 @@ cd /mnt/shared-storage-user/p1-shared/wuyulun/project/homework/pixhost/backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python app.py
+python app.py  # 内部使用 uvicorn 跑 ASGI，路由才会生效
 ```
 
 - 默认端口来自 `config.yaml`（默认 6007）

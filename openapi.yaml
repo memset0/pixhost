@@ -10,6 +10,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      x-bearerInfoFunc: src.core.security.bearer_info
   schemas:
     ErrorResponse:
       type: object

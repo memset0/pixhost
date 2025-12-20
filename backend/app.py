@@ -4,6 +4,8 @@
 from pathlib import Path
 import sys
 
+from connexion.options import SwaggerUIOptions
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 # 任务：确保 src 包可被导入
@@ -18,12 +20,21 @@ from src.core.errors import ApiError
 from src.core.config_loader import get_config
 from src.services.user_service import ensure_admin
 
+swagger_opts = SwaggerUIOptions(swagger_ui=False)
 connexion_app = connexion.FlaskApp(__name__, specification_dir=str(ROOT_DIR))
-connexion_app.add_api("openapi.yaml", strict_validation=True, validate_responses=False)
-app = connexion_app.app
+connexion_app.add_api(
+    "openapi.yaml",
+    strict_validation=True,
+    validate_responses=False,
+    swagger_ui_options=swagger_opts,
+)
+# 任务：分别暴露 Flask 实例用于错误处理，以及 ASGI 应用供 uvicorn 启动
+flask_app = connexion_app.app
+app = connexion_app.middleware
 
 
-@app.errorhandler(ApiError)
+# 错误处理挂在 Flask 应用上，Connexion 调用的视图会复用该处理
+@flask_app.errorhandler(ApiError)
 def handle_api_error(error: ApiError):
     response = {
         "error": {
@@ -33,6 +44,7 @@ def handle_api_error(error: ApiError):
         }
     }
     return jsonify(response), error.status_code
+connexion_app.middleware.add_error_handler(ApiError, handle_api_error)
 
 
 def bootstrap():
@@ -46,4 +58,6 @@ bootstrap()
 
 if __name__ == "__main__":
     port = get_config().get("port", 6007)
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # 任务：使用 uvicorn 跑 ASGI 应用，确保 Connexion 路由生效
+    # 方案：调用 connexion_app.run，它内部使用 uvicorn
+    connexion_app.run(port=port, host="0.0.0.0")
