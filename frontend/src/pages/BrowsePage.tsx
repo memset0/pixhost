@@ -53,6 +53,18 @@ type WaterfallMeta = {
   order: number | null;
 };
 
+// 任务：瀑布流卡片高度限制在可视范围内，按宽高比自适应后若仍不满足则等比缩放至区间
+// 方案：定义全局最小/最大高度，计算列高度时统一按限制后的显示高度，避免布局与视觉高度不一致
+const MIN_CARD_HEIGHT = 100;
+const MAX_CARD_HEIGHT = 600;
+
+const getDisplayHeight = (aspect: number, columnWidth: number) => {
+  if (!columnWidth) return 0;
+  const raw = columnWidth * aspect;
+  if (!Number.isFinite(raw)) return 0;
+  return Math.min(Math.max(raw, MIN_CARD_HEIGHT), MAX_CARD_HEIGHT);
+};
+
 const pickShortestColumn = (heights: number[]) => {
   let index = 0;
   for (let i = 1; i < heights.length; i += 1) {
@@ -65,7 +77,7 @@ const getColumnHeights = (metas: Record<string, WaterfallMeta>, columnWidth: num
   const heights = Array.from({ length: cols }, () => 0);
   Object.values(metas).forEach((meta) => {
     if (!meta.loaded || meta.column === null) return;
-    heights[meta.column] += columnWidth * meta.aspect;
+    heights[meta.column] += getDisplayHeight(meta.aspect, columnWidth);
   });
   return heights;
 };
@@ -81,7 +93,7 @@ const fillPendingColumns = (metas: Record<string, WaterfallMeta>, cols: number, 
 
   pending.forEach(([id, meta]) => {
     const target = pickShortestColumn(heights);
-    heights[target] += columnWidth * meta.aspect;
+    heights[target] += getDisplayHeight(meta.aspect, columnWidth);
     next[id] = { ...meta, column: target };
   });
 
@@ -97,7 +109,7 @@ const reflowLoadedColumns = (metas: Record<string, WaterfallMeta>, cols: number,
 
   loaded.forEach(([id, meta]) => {
     const target = pickShortestColumn(heights);
-    heights[target] += columnWidth * meta.aspect;
+    heights[target] += getDisplayHeight(meta.aspect, columnWidth);
     next[id] = { ...meta, column: target };
   });
 
@@ -133,23 +145,38 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [fullLoaded, setFullLoaded] = useState(false);
 
+  // 任务：浏览卡片 hover 才展示复制按钮与标签，并设定最小高度+阴影动态
+  // 方案：卡片高度限制在 100-600px，若原始等比高度不在区间则等比缩放，不做单轴拉伸；hover 控制阴影与浮层显隐
   useEffect(() => {
     setThumbLoaded(false);
     setFullLoaded(false);
   }, [item.id, cols, meta.column]);
 
   const growKey = `${item.id}-${cols}-${meta?.column ?? "c"}-${meta?.order ?? "o"}`;
-  const displayHeight = columnWidth ? columnWidth * (meta?.aspect ?? 1) : "auto";
+  const displayHeight = getDisplayHeight(meta?.aspect ?? 1, columnWidth);
 
   return (
     <Grow key={growKey} in={thumbLoaded} appear timeout={260}>
-      <Box component={RouterLink as any} to={`/images/${item.id}`} sx={{ textDecoration: "none" }}>
+      <Box
+        component={RouterLink as any}
+        to={`/images/${item.id}`}
+        sx={{
+          textDecoration: "none",
+          "&:hover .waterfall-hover": {
+            opacity: 1,
+            visibility: "visible",
+            transform: "translateY(0)",
+          },
+        }}
+      >
         <Box
           sx={{
             position: "relative",
             borderRadius: 1,
             overflow: "hidden",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            boxShadow: "0 3px 12px rgba(0,0,0,0.08)",
+            transition: "box-shadow 180ms ease",
+            "&:hover": { boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
             display: "block",
             backgroundColor: "#f8f8f8",
             height: displayHeight,
@@ -158,6 +185,7 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
           <Tooltip title="复制外链">
             <IconButton
               size="small"
+              className="waterfall-hover"
               sx={{
                 position: "absolute",
                 top: 8,
@@ -166,6 +194,10 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
                 color: "#fff",
                 "&:hover": { backgroundColor: "rgba(0,0,0,0.5)" },
                 zIndex: 1,
+                opacity: 0,
+                visibility: "hidden",
+                transform: "translateY(-4px)",
+                transition: "opacity 140ms ease, transform 140ms ease",
               }}
               onClick={(event) => {
                 event.preventDefault();
@@ -176,22 +208,22 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
               <ContentCopyIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Box
-            component="img"
-            src={`data:image/${item.thumbnail.format};base64,${item.thumbnail.data_base64}`}
-            alt={`thumbnail-${item.id}`}
-            onLoad={() => setThumbLoaded(true)}
-            loading="lazy"
-            sx={{
-              display: "block",
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              filter: fullLoaded ? "blur(0px)" : "blur(1px)",
-              transition: "filter 180ms ease, opacity 180ms ease",
-            }}
-          />
-          {thumbLoaded && (
+            <Box
+              component="img"
+              src={`data:image/${item.thumbnail.format};base64,${item.thumbnail.data_base64}`}
+              alt={`thumbnail-${item.id}`}
+              onLoad={() => setThumbLoaded(true)}
+              loading="lazy"
+              sx={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: fullLoaded ? "blur(0px)" : "blur(1px)",
+                transition: "filter 180ms ease, opacity 180ms ease",
+              }}
+            />
+            {thumbLoaded && (
             <Box
               component="img"
               src={item.public_url}
@@ -209,12 +241,35 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
               }}
             />
           )}
+          <Stack
+            direction="row"
+            spacing={1}
+            className="waterfall-hover"
+            sx={{
+              position: "absolute",
+              left: 12,
+              bottom: 12,
+              flexWrap: "wrap",
+              opacity: 0,
+              visibility: "hidden",
+              transform: "translateY(4px)",
+              transition: "opacity 140ms ease, transform 140ms ease",
+              pointerEvents: "none",
+            }}
+          >
+            {item.tags.slice(0, 3).map((tag: string) => (
+              <Chip
+                key={tag}
+                label={tag}
+                size="small"
+                sx={{
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  color: "#fff",
+                }}
+              />
+            ))}
+          </Stack>
         </Box>
-        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-          {item.tags.slice(0, 3).map((tag: string) => (
-            <Chip key={tag} label={tag} size="small" />
-          ))}
-        </Stack>
       </Box>
     </Grow>
   );
