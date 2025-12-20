@@ -1,0 +1,996 @@
+openapi: 3.0.3
+info:
+  title: Pixhost Image Manager API
+  version: 1.0.0
+servers:
+  - url: /
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+      required: [error]
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      required: [username, email, password]
+    RegisterResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+      required: [id, role]
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer
+        role:
+          type: string
+      required: [access_token, token_type, expires_in, role]
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+      required: [id, username, email, role]
+    UpdatePasswordRequest:
+      type: object
+      properties:
+        old_password:
+          type: string
+        new_password:
+          type: string
+      required: [old_password, new_password]
+    AdminUserListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    RoleUpdateRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, admin]
+      required: [role]
+    ConfigResponse:
+      type: object
+      properties:
+        site_name:
+          type: string
+        favicon_path:
+          type: string
+        upload_allowed_exts:
+          type: string
+        pagination_page_size:
+          type: integer
+      required: [site_name, favicon_path, upload_allowed_exts, pagination_page_size]
+    ConfigUpdateRequest:
+      type: object
+      properties:
+        site_name:
+          type: string
+        favicon_base64:
+          type: string
+        upload_allowed_exts:
+          type: string
+        pagination_page_size:
+          type: integer
+    UploadResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        view_url:
+          type: string
+        api_url:
+          type: string
+        file_url:
+          type: string
+        file_url_with_token:
+          type: string
+      required: [id, view_url, api_url, file_url, file_url_with_token]
+    Thumbnail:
+      type: object
+      properties:
+        format:
+          type: string
+        data_base64:
+          type: string
+      required: [format, data_base64]
+    ImageSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        thumbnail:
+          $ref: '#/components/schemas/Thumbnail'
+        tags:
+          type: array
+          items:
+            type: string
+        is_deleted:
+          type: boolean
+      required: [id, created_at, thumbnail, tags, is_deleted]
+    ImageListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageSummary'
+      required: [page, page_size, total, items]
+    ImageDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploader:
+          type: object
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+          required: [id, username]
+        storage_relpath:
+          type: string
+        dimensions:
+          type: object
+          properties:
+            width:
+              type: integer
+            height:
+              type: integer
+        capture_time:
+          type: object
+          properties:
+            taken_at:
+              type: string
+              format: date-time
+            taken_at_raw:
+              type: string
+        location:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            altitude:
+              type: number
+        exif:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        is_deleted:
+          type: boolean
+      required:
+        - id
+        - uploader
+        - storage_relpath
+        - tags
+        - created_at
+        - updated_at
+        - is_deleted
+    TagListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+      required: [items]
+    TagsUpdateRequest:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+      required: [tags]
+    CropRequest:
+      type: object
+      properties:
+        top:
+          type: number
+        bottom:
+          type: number
+        left:
+          type: number
+        right:
+          type: number
+      required: [top, bottom, left, right]
+    HueRequest:
+      type: object
+      properties:
+        delta:
+          type: number
+      required: [delta]
+    AiAnalyzeResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required: [status, message]
+    McpSearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+      required: [query]
+    McpSearchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+      required: [items]
+paths:
+  /api/health:
+    get:
+      operationId: src.api.health.check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /api/auth/register:
+    post:
+      operationId: src.api.auth.register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/login:
+    post:
+      operationId: src.api.auth.login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users/me:
+    get:
+      operationId: src.api.users.me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users/me/password:
+    patch:
+      operationId: src.api.users.change_password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePasswordRequest'
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/users:
+    get:
+      operationId: src.api.admin.list_users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/users/{user_id}/approve:
+    post:
+      operationId: src.api.admin.approve_user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/users/{user_id}/role:
+    post:
+      operationId: src.api.admin.set_role
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/config:
+    get:
+      operationId: src.api.config.get_config
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      operationId: src.api.config.update_config
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images:
+    get:
+      operationId: src.api.images.list_images
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: tags
+          schema:
+            type: string
+          description: Comma separated tags
+        - in: query
+          name: tag_mode
+          schema:
+            type: string
+            enum: [any, all]
+            default: all
+        - in: query
+          name: include_deleted
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Image list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageListResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: src.api.images.upload_image
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                tags:
+                  type: string
+              required: [file]
+      responses:
+        '200':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}:
+    get:
+      operationId: src.api.images.get_image
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Image detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageDetail'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: src.api.images.delete_image
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/restore:
+    post:
+      operationId: src.api.images.restore_image
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/file:
+    get:
+      operationId: src.api.images.get_file
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: token
+          schema:
+            type: string
+          description: Optional JWT token for direct link usage
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/thumbnail:
+    get:
+      operationId: src.api.images.get_thumbnail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Thumbnail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thumbnail'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/tags:
+    put:
+      operationId: src.api.images.update_tags
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagsUpdateRequest'
+      responses:
+        '200':
+          description: Tags updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/edit/crop:
+    post:
+      operationId: src.api.images.edit_crop
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CropRequest'
+      responses:
+        '200':
+          description: Cropped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/edit/hue:
+    post:
+      operationId: src.api.images.edit_hue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HueRequest'
+      responses:
+        '200':
+          description: Hue adjusted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/{image_id}/ai-analyze:
+    post:
+      operationId: src.api.ai.analyze_image
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '501':
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiAnalyzeResponse'
+  /api/images/{image_id}/ai-status:
+    get:
+      operationId: src.api.ai.analyze_status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: image_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '501':
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiAnalyzeResponse'
+  /api/mcp/search:
+    post:
+      operationId: src.api.mcp.search
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/McpSearchRequest'
+      responses:
+        '501':
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/McpSearchResponse'
+  /api/tags:
+    get:
+      operationId: src.api.tags.list_tags
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

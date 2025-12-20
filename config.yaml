@@ -1,0 +1,24 @@
+port: 6007
+site:
+  name: '图片管理站'
+  favicon_path: './static/favicon.ico'
+storage:
+  root_dir: './data/images'
+  backup_dir: './data/images/backup'
+upload:
+  allowed_exts: 'jpg,png,gif,jpeg'
+  max_size_mb: 20
+pagination:
+  page_size: 20
+thumbnail:
+  max_edge: 100
+  format: 'jpeg'
+  quality: 80
+  max_bytes: 102400
+
+database:
+  url: 'sqlite:///./data/app.db'
+
+security:
+  jwt_secret: 'CHANGE_ME'
+  jwt_exp_minutes: 120
