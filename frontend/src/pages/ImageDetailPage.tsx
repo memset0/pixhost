@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Alert, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -83,6 +84,35 @@ const ImageDetailPage: React.FC = () => {
     loadFile();
   };
 
+  // 任务：详情页提供外链复制
+  // 方案：优先使用接口返回的 public_url，不存在时用 storage_relpath 拼出链接，并在无 Clipboard API 时用 textarea 兜底
+  const buildPublicLink = () => {
+    if (!data) return '';
+    if (data.public_url) return data.public_url;
+    if (data.storage_relpath) {
+      const origin = window.location.origin.replace(/\/$/, '');
+      return `${origin}/images/${data.storage_relpath}`;
+    }
+    return '';
+  };
+
+  const copyPublicLink = async () => {
+    const link = buildPublicLink();
+    if (!link) return;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(link);
+      setNotice('已复制外链');
+      return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = link;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    setNotice('已复制外链');
+  };
+
   const removeImage = async () => {
     await api.delete(`/images/${imageId}`);
     setNotice('图片已删除');
@@ -107,44 +137,23 @@ const ImageDetailPage: React.FC = () => {
       {notice && <Alert severity="success">{notice}</Alert>}
 
       <Card>
-        <CardContent>{fileUrl && <Box component="img" src={fileUrl} alt="detail" sx={{ width: '100%', borderRadius: 2 }} />}</CardContent>
-      </Card>
-
-      <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            基础信息
-          </Typography>
-          <Stack spacing={1}>
-            <Typography>上传者：{data.uploader?.username || ''}</Typography>
-            <Typography>上传时间：{data.created_at}</Typography>
-            <Typography>更新时间：{data.updated_at}</Typography>
-            {data.dimensions && (
-              <Typography>
-                尺寸：{data.dimensions.width} x {data.dimensions.height}
-              </Typography>
+          {fileUrl && <Box component="img" src={fileUrl} alt="detail" sx={{ width: '100%', borderRadius: 2 }} />}
+          <Stack direction="row" spacing={2}>
+            <Button variant="text" startIcon={<ContentCopyIcon />} sx={{ mt: 1 }} onClick={copyPublicLink}>
+              复制外链
+            </Button>
+            {isOwner && !data.is_deleted && (
+              <Button variant="contained" color="error" onClick={removeImage}>
+                删除
+              </Button>
             )}
-            {data.capture_time?.taken_at && <Typography>拍摄时间：{data.capture_time.taken_at}</Typography>}
-            {data.location?.latitude !== null && data.location?.latitude !== undefined && (
-              <Typography>
-                地点：{data.location.latitude}, {data.location.longitude}
-              </Typography>
+            {isOwner && data.is_deleted && (
+              <Button variant="outlined" onClick={restoreImage}>
+                恢复图片
+              </Button>
             )}
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {data.tags?.map((tag: string) => (
-                <Chip key={tag} label={tag} size="small" />
-              ))}
-            </Stack>
-            {data.exif?.length > 0 && (
-              <Stack spacing={1}>
-                <Typography sx={{ fontWeight: 600 }}>EXIF 信息</Typography>
-                {data.exif.slice(0, 6).map((entry: any) => (
-                  <Typography key={entry.key} variant="body2">
-                    {entry.key}: {entry.value}
-                  </Typography>
-                ))}
-              </Stack>
-            )}
+            {data.is_deleted && <Chip label="已删除" color="warning" />}
           </Stack>
         </CardContent>
       </Card>
@@ -206,30 +215,44 @@ const ImageDetailPage: React.FC = () => {
         </Card>
       )}
 
-      {isOwner && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              删除与恢复
-            </Typography>
-            <Stack direction="row" spacing={2}>
-              {!data.is_deleted && (
-                <Button variant="contained" color="error" onClick={removeImage}>
-                  删除
-                </Button>
-              )}
-              {data.is_deleted && (
-                <>
-                  <Button variant="outlined" onClick={restoreImage}>
-                    恢复图片
-                  </Button>
-                  <Chip label="已删除" color="warning" />
-                </>
-              )}
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            基础信息
+          </Typography>
+          <Stack spacing={1}>
+            <Typography>上传者：{data.uploader?.username || ''}</Typography>
+            <Typography>上传时间：{data.created_at}</Typography>
+            <Typography>更新时间：{data.updated_at}</Typography>
+            {data.dimensions && (
+              <Typography>
+                尺寸：{data.dimensions.width} x {data.dimensions.height}
+              </Typography>
+            )}
+            {data.capture_time?.taken_at && <Typography>拍摄时间：{data.capture_time.taken_at}</Typography>}
+            {data.location?.latitude !== null && data.location?.latitude !== undefined && (
+              <Typography>
+                地点：{data.location.latitude}, {data.location.longitude}
+              </Typography>
+            )}
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {data.tags?.map((tag: string) => (
+                <Chip key={tag} label={tag} size="small" />
+              ))}
             </Stack>
-          </CardContent>
-        </Card>
-      )}
+            {data.exif?.length > 0 && (
+              <Stack spacing={1}>
+                <Typography sx={{ fontWeight: 600 }}>EXIF 信息</Typography>
+                {data.exif.slice(0, 6).map((entry: any) => (
+                  <Typography key={entry.key} variant="body2">
+                    {entry.key}: {entry.value}
+                  </Typography>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 };

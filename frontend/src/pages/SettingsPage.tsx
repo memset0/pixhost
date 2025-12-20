@@ -20,6 +20,7 @@ const SettingsPage: React.FC = () => {
   const [siteName, setSiteName] = useState('');
   const [allowedExts, setAllowedExts] = useState('');
   const [pageSize, setPageSize] = useState(20);
+  const [copyLinkBaseUrl, setCopyLinkBaseUrl] = useState('');
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
 
   const configQuery = useQuery({
@@ -33,6 +34,7 @@ const SettingsPage: React.FC = () => {
       setSiteName(data.site_name || '');
       setAllowedExts(data.upload_allowed_exts || '');
       setPageSize(data.pagination_page_size || 20);
+      setCopyLinkBaseUrl(data.copy_link_base_url || '');
     },
   });
 
@@ -87,6 +89,7 @@ const SettingsPage: React.FC = () => {
       if (siteName) payload.site_name = siteName;
       if (allowedExts) payload.upload_allowed_exts = allowedExts;
       if (pageSize) payload.pagination_page_size = pageSize;
+      payload.copy_link_base_url = copyLinkBaseUrl;
       if (faviconFile) {
         payload.favicon_base64 = await fileToBase64(faviconFile);
       }
@@ -158,6 +161,12 @@ const SettingsPage: React.FC = () => {
               <TextField label="站点名称" value={siteName} onChange={(event) => setSiteName(event.target.value)} />
               <TextField label="允许上传后缀 (逗号分隔)" value={allowedExts} onChange={(event) => setAllowedExts(event.target.value)} />
               <TextField label="分页大小" type="number" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} />
+              <TextField
+                label="复制链接 Base URL"
+                value={copyLinkBaseUrl}
+                onChange={(event) => setCopyLinkBaseUrl(event.target.value)}
+                helperText="留空则使用当前站点域名"
+              />
               <Button variant="outlined" component="label">
                 上传 Favicon
                 <input type="file" hidden accept="image/*" onChange={(event) => setFaviconFile(event.target.files?.[0] || null)} />

@@ -114,7 +114,9 @@ components:
           type: string
         pagination_page_size:
           type: integer
-      required: [site_name, favicon_path, upload_allowed_exts, pagination_page_size]
+        copy_link_base_url:
+          type: string
+      required: [site_name, favicon_path, upload_allowed_exts, pagination_page_size, copy_link_base_url]
     ConfigUpdateRequest:
       type: object
       properties:
@@ -126,6 +128,8 @@ components:
           type: string
         pagination_page_size:
           type: integer
+        copy_link_base_url:
+          type: string
     UploadResponse:
       type: object
       properties:
@@ -139,7 +143,9 @@ components:
           type: string
         file_url_with_token:
           type: string
-      required: [id, view_url, api_url, file_url, file_url_with_token]
+        public_url:
+          type: string
+      required: [id, view_url, api_url, file_url, file_url_with_token, public_url]
     Thumbnail:
       type: object
       properties:
@@ -164,7 +170,9 @@ components:
             type: string
         is_deleted:
           type: boolean
-      required: [id, created_at, thumbnail, tags, is_deleted]
+        public_url:
+          type: string
+      required: [id, created_at, thumbnail, tags, is_deleted, public_url]
     ImageListResponse:
       type: object
       properties:
@@ -193,6 +201,8 @@ components:
               type: string
           required: [id, username]
         storage_relpath:
+          type: string
+        public_url:
           type: string
         dimensions:
           type: object
@@ -243,6 +253,7 @@ components:
         - id
         - uploader
         - storage_relpath
+        - public_url
         - tags
         - created_at
         - updated_at
@@ -770,6 +781,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /images/{year}/{month}/{day}/{filename}:
+    get:
+      operationId: src.api.images.get_public_file
+      security: []
+      parameters:
+        - in: path
+          name: year
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: month
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: day
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Public image file
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
         '404':
           description: Not found
           content:

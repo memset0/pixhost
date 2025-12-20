@@ -15,11 +15,15 @@ import {
   FormControl,
   InputLabel,
   Chip,
+  IconButton,
+  Tooltip,
+  Snackbar,
   useMediaQuery,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import api from "../api/client";
 
@@ -37,6 +41,7 @@ const fetchImages = async (page: number, tags: string, tagMode: string) => {
 const BrowsePage: React.FC = () => {
   const [tags, setTags] = useState("");
   const [tagMode, setTagMode] = useState("all");
+  const [notice, setNotice] = useState("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const theme = useTheme();
   const upSm = useMediaQuery(theme.breakpoints.up("sm"));
@@ -70,6 +75,14 @@ const BrowsePage: React.FC = () => {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [query.hasNextPage, query.isFetchingNextPage]);
+
+  // 任务：为列表图片提供一键复制外链的交互
+  // 方案：使用后端返回的 public_url，通过剪贴板 API 写入并轻提示
+  const copyLink = async (url?: string) => {
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setNotice("已复制图片链接");
+  };
 
   return (
     <Stack spacing={3}>
@@ -107,7 +120,33 @@ const BrowsePage: React.FC = () => {
 
       <ImageList variant="masonry" cols={cols} gap={16} sx={{ m: 0 }}>
         {items.map((item: any) => (
-          <ImageListItem key={item.id} component={RouterLink as any} to={`/images/${item.id}`} sx={{ textDecoration: "none" }}>
+          <ImageListItem
+            key={item.id}
+            component={RouterLink as any}
+            to={`/images/${item.id}`}
+            sx={{ textDecoration: "none", position: "relative" }}
+          >
+            <Tooltip title="复制外链">
+              <IconButton
+                size="small"
+                sx={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "rgba(0,0,0,0.35)",
+                  color: "#fff",
+                  "&:hover": { backgroundColor: "rgba(0,0,0,0.5)" },
+                  zIndex: 1,
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  copyLink(item.public_url);
+                }}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Box
               component="img"
               src={`data:image/${item.thumbnail.format};base64,${item.thumbnail.data_base64}`}
@@ -135,6 +174,13 @@ const BrowsePage: React.FC = () => {
         </Typography>
       )}
       <Box ref={sentinelRef} sx={{ height: 1 }} />
+      <Snackbar
+        open={Boolean(notice)}
+        autoHideDuration={1500}
+        onClose={() => setNotice("")}
+        message={notice}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Stack>
   );
 };

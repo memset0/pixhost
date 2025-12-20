@@ -19,6 +19,7 @@ def update_config(body: dict):
     favicon_base64 = payload.get("favicon_base64")
     upload_allowed_exts = payload.get("upload_allowed_exts")
     pagination_page_size = payload.get("pagination_page_size")
+    copy_link_base_url = payload.get("copy_link_base_url")
     with session_scope() as session:
         current = get_current_user(session)
         require_role(current, ["admin"])
@@ -27,4 +28,5 @@ def update_config(body: dict):
             favicon_base64,
             upload_allowed_exts,
             pagination_page_size,
+            copy_link_base_url,
         )

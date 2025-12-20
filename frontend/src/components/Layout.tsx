@@ -1,8 +1,8 @@
 // 任务：提供统一的页面框架与导航栏
-// 方案：使用 MUI AppBar + ToolBar + Container 布局
+// 方案：使用 MUI AppBar + ToolBar + Container 布局，并添加滚动时显示阴影的交互效果
 
 import React from "react";
-import { AppBar, Toolbar, Typography, Button, Box, Container, Chip } from "@mui/material";
+import { AppBar, Toolbar, Typography, Button, Box, Container, Chip, useScrollTrigger } from "@mui/material";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { useAuth } from "../pages/auth/AuthProvider";
 
@@ -18,9 +18,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const canAccessImages = role === "user" || role === "admin";
 
+  // 任务：实现页面滚动时 AppBar 显示阴影，回到顶部时阴影消失
+  // 方案：使用 MUI 的 useScrollTrigger 钩子监听滚动状态，动态调整 elevation 属性
+  const trigger = useScrollTrigger({
+    disableHysteresis: true,
+    threshold: 0,
+  });
+
   return (
     <Box sx={{ minHeight: "100vh" }}>
-      <AppBar position="sticky" elevation={0} sx={{ backgroundColor: "#1f3c2f" }}>
+      <AppBar 
+        position="sticky" 
+        elevation={trigger ? 4 : 0} 
+        sx={{ 
+          backgroundColor: "#1f3c2f",
+          transition: "box-shadow 0.3s ease-in-out" 
+        }}
+      >
         <Toolbar sx={{ display: "flex", gap: 2 }}>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
             Pixhost

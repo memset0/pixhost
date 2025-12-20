@@ -2,6 +2,8 @@ port: 6007
 site:
   name: '图片管理站'
   favicon_path: './static/favicon.ico'
+links:
+  public_base_url: ''
 storage:
   root_dir: './data/images'
   backup_dir: './data/images/backup'

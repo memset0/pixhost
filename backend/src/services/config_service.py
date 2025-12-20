@@ -15,6 +15,7 @@ def get_config_view():
         "favicon_path": cfg.get("site", {}).get("favicon_path", ""),
         "upload_allowed_exts": cfg.get("upload", {}).get("allowed_exts", ""),
         "pagination_page_size": cfg.get("pagination", {}).get("page_size", 20),
+        "copy_link_base_url": cfg.get("links", {}).get("public_base_url", ""),
     }
 
 
@@ -23,6 +24,7 @@ def update_config(
     favicon_base64: Optional[str],
     upload_allowed_exts: Optional[str],
     pagination_page_size: Optional[int],
+    copy_link_base_url: Optional[str],
 ):
     cfg = get_config()
     if site_name:
@@ -31,6 +33,8 @@ def update_config(
         cfg.setdefault("upload", {})["allowed_exts"] = upload_allowed_exts
     if pagination_page_size:
         cfg.setdefault("pagination", {})["page_size"] = int(pagination_page_size)
+    if copy_link_base_url is not None:
+        cfg.setdefault("links", {})["public_base_url"] = copy_link_base_url
     if favicon_base64:
         favicon_path = cfg.get("site", {}).get("favicon_path", "./static/favicon.ico")
         abs_path = resolve_path(favicon_path)

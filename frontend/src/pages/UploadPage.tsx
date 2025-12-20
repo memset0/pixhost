@@ -21,7 +21,7 @@ type UploadItem = {
   progress: number;
   status: "waiting" | "uploading" | "success" | "error";
   message?: string;
-  fileUrl?: string;
+  publicUrl?: string;
 };
 
 const UploadPage: React.FC = () => {
@@ -50,7 +50,7 @@ const UploadPage: React.FC = () => {
       updateItem(item.id, {
         status: "success",
         progress: 100,
-        fileUrl: response.data.file_url_with_token,
+        publicUrl: response.data.public_url,
       });
     } catch (err: any) {
       updateItem(item.id, { status: "error", message: err?.response?.data?.error?.message || "上传失败" });
@@ -123,7 +123,7 @@ const UploadPage: React.FC = () => {
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Typography sx={{ fontWeight: 600 }}>{item.file.name}</Typography>
                 {item.status === "success" && (
-                  <Button size="small" onClick={() => copyLink(item.fileUrl)}>
+                  <Button size="small" onClick={() => copyLink(item.publicUrl)}>
                     复制链接
                   </Button>
                 )}

@@ -13,7 +13,12 @@ from src.core.config_loader import get_config
 from src.core.errors import ApiError, ERROR_VALIDATION, ERROR_NOT_FOUND
 from src.models.image import Image as ImageModel
 from src.models.tag import Tag
-from src.services.image_service import save_upload, parse_tag_string, get_image_or_404, find_or_create_tags
+from src.services.image_service import (
+    save_upload,
+    parse_tag_string,
+    get_image_or_404,
+    find_or_create_tags,
+)
 from src.services.serializers import serialize_image_summary, serialize_image_detail
 from src.services.thumbnail_service import upsert_thumbnail
 from src.services.edit_service import backup_original, after_edit
@@ -21,7 +26,34 @@ from src.utils.path_utils import resolve_path
 from src.utils.image_ops import crop_image, adjust_hue
 
 
-def list_images(page: int = 1, page_size: int = None, tags: str = None, tag_mode: str = "all", include_deleted: bool = False):
+# 任务：根据存储相对路径构造可对外复制的访问链接
+# 方案：优先使用配置的 links.public_base_url，否则回落到当前请求 host，固定拼接 /images/{storage_relpath}
+def _build_public_image_url(image) -> str:
+    cfg = get_config()
+    base_url = (cfg.get("links", {}) or {}).get("public_base_url", "") or ""
+    if base_url:
+        prefix = base_url.rstrip("/")
+    else:
+        # 对于 Starlette/ASGI 场景，request.base_url 可能是 URL 对象，需用 str() 转换
+        base_url_str = str(request.base_url)
+        # 去除结尾的"/"
+        prefix = base_url_str.rstrip("/")
+    return f"{prefix}/images/{image.storage_relpath}"
+
+
+# 任务：从路径段还原存储相对路径
+# 方案：统一补零格式，确保与 build_storage_relpath 生成的格式一致
+def _compose_storage_relpath(year: int, month: int, day: int, filename: str) -> str:
+    return f"{int(year):04d}/{int(month):02d}/{int(day):02d}/{filename}"
+
+
+def list_images(
+    page: int = 1,
+    page_size: int = None,
+    tags: str = None,
+    tag_mode: str = "all",
+    include_deleted: bool = False,
+):
     with session_scope() as session:
         current = get_current_user(session)
         require_role(current, ["user", "admin"])
@@ -41,7 +73,9 @@ def list_images(page: int = 1, page_size: int = None, tags: str = None, tag_mode
         if tag_list:
             query = query.join(ImageModel.tags).filter(Tag.name.in_(tag_list))
             if tag_mode == "all":
-                query = query.group_by(ImageModel.id).having(func.count(distinct(Tag.id)) == len(tag_list))
+                query = query.group_by(ImageModel.id).having(
+                    func.count(distinct(Tag.id)) == len(tag_list)
+                )
             else:
                 query = query.distinct()
 
@@ -52,7 +86,13 @@ def list_images(page: int = 1, page_size: int = None, tags: str = None, tag_mode
             "page": page,
             "page_size": size,
             "total": total,
-            "items": [serialize_image_summary(session, item) for item in items],
+            "items": [
+                {
+                    **serialize_image_summary(session, item),
+                    "public_url": _build_public_image_url(item),
+                }
+                for item in items
+            ],
         }
 
 
@@ -74,7 +114,10 @@ def upload_image(file, tags: str = ""):
             "view_url": f"/images/{image.id}",
             "api_url": f"/api/images/{image.id}",
             "file_url": f"/api/images/{image.id}/file",
-            "file_url_with_token": f"/api/images/{image.id}/file?token={token}" if token else f"/api/images/{image.id}/file",
+            "file_url_with_token": f"/api/images/{image.id}/file?token={token}"
+            if token
+            else f"/api/images/{image.id}/file",
+            "public_url": _build_public_image_url(image),
         }
 
 
@@ -86,7 +129,9 @@ def get_image(image_id: int):
         image = get_image_or_404(session, image_id)
         if image.is_deleted and image.uploader_id != current.id:
             raise ApiError(404, ERROR_NOT_FOUND, "image not found")
-        return serialize_image_detail(image)
+        detail = serialize_image_detail(image)
+        detail["public_url"] = _build_public_image_url(image)
+        return detail
 
 
 def get_file(image_id: int, token: str = None):
@@ -103,6 +148,26 @@ def get_file(image_id: int, token: str = None):
         if not file_path.exists():
             raise ApiError(404, ERROR_NOT_FOUND, "file not found")
         return send_file(file_path)
+
+
+# 任务：提供基于日期+hash 的公开图片访问接口，不依赖登录态
+# 方案：按路径拼出存储相对路径查询数据库，过滤软删除后直接 send_file
+def get_public_file(year: int, month: int, day: int, filename: str):
+    storage_relpath = _compose_storage_relpath(year, month, day, filename)
+    with session_scope() as session:
+        image = (
+            session.query(ImageModel)
+            .filter(ImageModel.storage_relpath == storage_relpath)
+            .first()
+        )
+        if not image or image.is_deleted:
+            raise ApiError(404, ERROR_NOT_FOUND, "file not found")
+
+    cfg = get_config()
+    file_path = resolve_path(cfg["storage"]["root_dir"]) / storage_relpath
+    if not file_path.exists():
+        raise ApiError(404, ERROR_NOT_FOUND, "file not found")
+    return send_file(file_path)
 
 
 def get_thumbnail(image_id: int):
@@ -131,7 +196,9 @@ def update_tags(image_id: int, body: dict):
         require_owner(current, image)
 
         image.tags = [tag for tag in image.tags if tag.source != "custom"]
-        custom_tags = find_or_create_tags(session, [item.strip() for item in tags if item.strip()], "custom")
+        custom_tags = find_or_create_tags(
+            session, [item.strip() for item in tags if item.strip()], "custom"
+        )
         image.tags.extend(custom_tags)
         return {"status": "ok"}
 
@@ -147,7 +214,10 @@ def edit_crop(image_id: int, body: dict):
     for key, value in ratios.items():
         if value < 0 or value > 100:
             raise ApiError(400, ERROR_VALIDATION, f"{key} out of range")
-    if ratios["left"] + ratios["right"] >= 100 or ratios["top"] + ratios["bottom"] >= 100:
+    if (
+        ratios["left"] + ratios["right"] >= 100
+        or ratios["top"] + ratios["bottom"] >= 100
+    ):
         raise ApiError(400, ERROR_VALIDATION, "crop ratios too large")
 
     with session_scope() as session:
