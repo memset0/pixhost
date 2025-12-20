@@ -41,3 +41,18 @@ pnpm run dev
 - 图片原图保存于 `config.yaml -> storage.root_dir`
 - 缩略图存于数据库（base64），最大 100KB，最大边 100px
 - 编辑图片会先备份到 `storage.backup_dir`
+
+## 使用 docker-compose 启动
+
+> 任务：一键启动前后端容器并共享配置/数据；方案：直接使用仓库根目录的 `docker-compose.yml`，后端跑 Python 3.10、前端跑 Node 22 + pnpm，容器网络互通，暴露 6007（后端）和 5173（前端）。
+
+1) 先确保本机安装了 Docker 与 docker-compose。
+2) 在项目根目录执行：
+
+```bash
+docker-compose up
+```
+
+- 后端容器使用 `python:3.10`，启动前自动 `pip install -r backend/requirements.txt`，挂载 `./config.yaml`、`./openapi.yaml`、`./data`，服务监听 `0.0.0.0:6007`。
+- 前端容器使用 `node:22` + `pnpm`，启动前 `pnpm install`，`pnpm run dev -- --host 0.0.0.0 --port 5173`，通过环境变量 `VITE_BACKEND_ORIGIN=http://backend:6007` 代理 API。
+- 前后端容器在同一 `pixhost_net` 网络，确保互通。需要重新拉取镜像或清理缓存时，可改用 `docker-compose up --build`.

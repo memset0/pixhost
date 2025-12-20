@@ -1,0 +1,44 @@
+# 任务：通过 docker-compose 启动 backend 与 frontend 容器，并映射 config.yaml 与 data 目录，确保容器内互通与各自端口可访问；方案：后端基于 python:3.10 挂载源码与配置，启动前 pip 安装依赖；前端基于 node:22 + pnpm，启动前执行 pnpm install 后以 dev 模式运行，代理指向 backend 服务。
+version: "3.9"
+
+services:
+  backend:
+    image: python:3.10
+    working_dir: /app/backend
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             python app.py"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app/backend
+      - ./config.yaml:/app/config.yaml
+      - ./openapi.yaml:/app/openapi.yaml
+      - ./data:/app/data
+    ports:
+      - "6007:6007"
+    networks:
+      - pixhost_net
+
+  frontend:
+    image: node:22
+    working_dir: /app/frontend
+    command: >
+      sh -c "corepack enable &&
+             pnpm install &&
+             pnpm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      - VITE_BACKEND_ORIGIN=http://backend:6007
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - pixhost_net
+
+networks:
+  pixhost_net:
+    driver: bridge
