@@ -248,8 +248,12 @@ const ImageDetailPage: React.FC = () => {
   const applyCrop = async () => {
     await api.post(`/images/${imageId}/edit/crop`, cropValues);
     setNotice('裁剪完成');
-    refetch();
-    loadFile();
+    // 任务：裁剪成功后基础信息应显示新宽高
+    // 方案：重置加载状态后强制拉取详情与缩略图/原图，确保尺寸与展示同步更新
+    resetImageLoading();
+    await refetch();
+    await loadThumbnail();
+    await loadFile();
   };
 
   const applyHue = async () => {
