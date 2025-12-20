@@ -14,7 +14,7 @@ class Image(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     uploader_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     ext: Mapped[str] = mapped_column(String(16), nullable=False)
     hash: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     storage_relpath: Mapped[str] = mapped_column(String(512), nullable=False)

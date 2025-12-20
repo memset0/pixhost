@@ -60,6 +60,9 @@ def serialize_image_detail(image):
         if image.uploader
         else {"id": image.uploader_id, "username": ""},
         "storage_relpath": image.storage_relpath,
+        # 任务：详情返回上传时的文件名，便于前端展示原文件信息
+        # 方案：序列化可空的 original_filename 字段
+        "original_filename": image.original_filename,
         "dimensions": dimensions,
         "capture_time": capture_time,
         "location": location,

@@ -46,15 +46,20 @@ def _max_size_bytes() -> int:
 def validate_upload(file_storage, content_length: Optional[int]):
     # 任务：校验上传文件的后缀与大小
     # 方案：后缀白名单 + 请求体大小限制
-    if not file_storage or not file_storage.filename:
+    if not file_storage:
         raise ApiError(400, ERROR_VALIDATION, "file missing")
-    ext = Path(file_storage.filename).suffix.lstrip(".").lower()
+    raw_filename = (file_storage.filename or "").strip()
+    ext = Path(raw_filename).suffix.lstrip(".").lower()
+    if not ext and file_storage.mimetype:
+        mimetype = file_storage.mimetype.lower()
+        if mimetype.startswith("image/"):
+            ext = mimetype.split("/", 1)[1]
     if ext not in _allowed_exts():
         raise ApiError(415, ERROR_UNSUPPORTED, "file extension not allowed")
     max_bytes = _max_size_bytes()
     if content_length and content_length > max_bytes:
         raise ApiError(413, ERROR_TOO_LARGE, "file too large")
-    return ext
+    return ext, raw_filename or None
 
 
 def find_or_create_tags(session, names: List[str], source: str) -> List[Tag]:
@@ -69,7 +74,7 @@ def find_or_create_tags(session, names: List[str], source: str) -> List[Tag]:
 
 
 def save_upload(session, file_storage, uploader, tags_value: str, content_length: Optional[int]):
-    ext = validate_upload(file_storage, content_length)
+    ext, original_filename = validate_upload(file_storage, content_length)
     root_dir = resolve_path(get_config()["storage"]["root_dir"])
     storage_relpath, hash_value = build_storage_relpath(ext)
     abs_path = root_dir / storage_relpath
@@ -93,7 +98,9 @@ def save_upload(session, file_storage, uploader, tags_value: str, content_length
 
     image = ImageModel(
         uploader_id=uploader.id,
-        original_filename=file_storage.filename,
+        # 任务：记录上传时的原始文件名，缺失时置空以便后续展示/兼容
+        # 方案：在校验阶段保留 filename，入库前统一清洗为 Optional[str]
+        original_filename=original_filename,
         ext=ext,
         hash=hash_value,
         storage_relpath=str(storage_relpath),

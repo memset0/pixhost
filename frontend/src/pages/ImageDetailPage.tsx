@@ -326,6 +326,8 @@ const ImageDetailPage: React.FC = () => {
               </Typography>
               <Stack spacing={1}>
                 <Typography>上传者：{data.uploader?.username || ''}</Typography>
+                {/* 任务：详情页补充展示上传时的原始文件名，仅在存在时呈现 */}
+                {data.original_filename && <Typography>原始文件名：{data.original_filename}</Typography>}
                 <Typography>上传时间：{data.created_at}</Typography>
                 <Typography>更新时间：{data.updated_at}</Typography>
                 {data.dimensions && (
