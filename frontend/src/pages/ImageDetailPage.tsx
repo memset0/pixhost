@@ -15,6 +15,11 @@ const ImageDetailPage: React.FC = () => {
   const imageId = Number(id);
   const { user } = useAuth();
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  // 任务：详情页去掉“加载中...”文本，骨架直接加载并用缩略图渐进替换原图
+  // 方案：先拉缩略图展示，完整图加载后淡入覆盖缩略图，骨架占位维持布局
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const [fullLoaded, setFullLoaded] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [cropValues, setCropValues] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
   const [hue, setHue] = useState(0);
@@ -47,6 +52,18 @@ const ImageDetailPage: React.FC = () => {
     return data.uploader?.id === user.id;
   }, [data, user]);
 
+  const resetImageLoading = useCallback(() => {
+    setThumbLoaded(false);
+    setFullLoaded(false);
+    setThumbUrl(null);
+  }, []);
+
+  const loadThumbnail = useCallback(async () => {
+    const response = await api.get(`/images/${imageId}/thumbnail`);
+    const { format, data_base64: dataBase64 } = response.data;
+    setThumbUrl(`data:image/${format};base64,${dataBase64}`);
+  }, [imageId]);
+
   const loadFile = useCallback(async () => {
     const response = await api.get(`/images/${imageId}/file`, { responseType: 'blob' });
     const url = URL.createObjectURL(response.data);
@@ -60,9 +77,11 @@ const ImageDetailPage: React.FC = () => {
     if (Number.isFinite(imageId)) {
       resetPreview();
       setActiveEditor(null);
+      resetImageLoading();
+      loadThumbnail();
       loadFile();
     }
-  }, [imageId, loadFile, resetPreview]);
+  }, [imageId, loadFile, loadThumbnail, resetImageLoading, resetPreview]);
 
   useEffect(() => {
     return () => {
@@ -169,7 +188,7 @@ const ImageDetailPage: React.FC = () => {
       }
       return { width: baseWidth, height: baseHeight };
     },
-    [cropValues.bottom, cropValues.left, cropValues.right, cropValues.top, data?.dimensions?.height, data?.dimensions?.width],
+    [cropValues.bottom, cropValues.left, cropValues.right, cropValues.top, data?.dimensions?.height, data?.dimensions?.width]
   );
 
   // 任务：编辑参数变化时实时拉取预览，并在等待后端时用占位与转圈提示
@@ -178,10 +197,7 @@ const ImageDetailPage: React.FC = () => {
     if (!Number.isFinite(imageId) || !activeEditor) return;
 
     const controller = new AbortController();
-    const payload =
-      activeEditor === 'crop'
-        ? { mode: 'crop', ...cropValues }
-        : { mode: 'hue', delta: hue };
+    const payload = activeEditor === 'crop' ? { mode: 'crop', ...cropValues } : { mode: 'hue', delta: hue };
 
     setPreviewMode(activeEditor);
     setPreviewLoading(true);
@@ -285,7 +301,7 @@ const ImageDetailPage: React.FC = () => {
   };
 
   if (!data) {
-    return <Typography>加载中...</Typography>;
+    return null;
   }
 
   return (
@@ -316,7 +332,53 @@ const ImageDetailPage: React.FC = () => {
           }}
         >
           <Card>
-            <CardContent>{fileUrl && <Box component="img" src={fileUrl} alt="detail" sx={{ width: '100%', borderRadius: 1 }} />}</CardContent>
+            <CardContent>
+              <Box
+                sx={{
+                  position: 'relative',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  bgcolor: 'grey.100',
+                  minHeight: 320,
+                }}
+              >
+                {thumbUrl && (
+                  <Box
+                    component="img"
+                    src={thumbUrl}
+                    alt="thumbnail"
+                    onLoad={() => setThumbLoaded(true)}
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'block',
+                      objectFit: 'contain',
+                      filter: fullLoaded ? 'blur(0px)' : 'blur(1px)',
+                      opacity: thumbLoaded ? 1 : 0,
+                      transition: 'filter 180ms ease, opacity 180ms ease',
+                    }}
+                  />
+                )}
+                {thumbLoaded && fileUrl && (
+                  <Box
+                    component="img"
+                    src={fileUrl}
+                    alt="detail"
+                    onLoad={() => setFullLoaded(true)}
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      opacity: fullLoaded ? 1 : 0,
+                      transition: 'opacity 220ms ease',
+                      backgroundColor: 'transparent',
+                    }}
+                  />
+                )}
+              </Box>
+            </CardContent>
           </Card>
 
           <Card>
