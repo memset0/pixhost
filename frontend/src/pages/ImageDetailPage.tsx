@@ -2,7 +2,7 @@
 // 方案：拉取 /images/{id} 元数据，并使用 blob 显示原图
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar, CircularProgress } from '@mui/material';
+import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar, CircularProgress, Skeleton } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -300,6 +300,17 @@ const ImageDetailPage: React.FC = () => {
     refetch();
   };
 
+  // 任务：图片加载前用原始尺寸生成骨架，按“骨架 -> 缩略图 -> 原图”顺序显示
+  // 方案：根据 metadata 计算 aspectRatio，三态布尔控制骨架/缩略图/原图的显隐，原图独立加载避免依赖缩略图
+  const aspectRatio = useMemo(() => {
+    const width = Number(data?.dimensions?.width) || 4;
+    const height = Number(data?.dimensions?.height) || 3;
+    return `${Math.max(1, width)} / ${Math.max(1, height)}`;
+  }, [data?.dimensions?.height, data?.dimensions?.width]);
+  const showSkeleton = !thumbLoaded && !fullLoaded;
+  const showThumb = Boolean(thumbUrl && thumbLoaded && !fullLoaded);
+  const showFull = Boolean(fileUrl && fullLoaded);
+
   if (!data) {
     return null;
   }
@@ -338,8 +349,12 @@ const ImageDetailPage: React.FC = () => {
                   position: 'relative',
                   borderRadius: 1,
                   overflow: 'hidden',
+                  bgcolor: 'grey.50',
+                  aspectRatio,
+                  minHeight: 240,
                 }}
               >
+                {showSkeleton && <Skeleton variant="rectangular" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />}
                 {thumbUrl && (
                   <Box
                     component="img"
@@ -352,12 +367,13 @@ const ImageDetailPage: React.FC = () => {
                       display: 'block',
                       objectFit: 'contain',
                       filter: fullLoaded ? 'blur(0px)' : 'blur(1px)',
-                      opacity: thumbLoaded ? 1 : 0,
+                      opacity: showThumb ? 1 : 0,
                       transition: 'filter 180ms ease, opacity 180ms ease',
+                      visibility: thumbLoaded ? 'visible' : 'hidden',
                     }}
                   />
                 )}
-                {thumbLoaded && fileUrl && (
+                {fileUrl && (
                   <Box
                     component="img"
                     src={fileUrl}
@@ -369,7 +385,7 @@ const ImageDetailPage: React.FC = () => {
                       width: '100%',
                       height: '100%',
                       objectFit: 'contain',
-                      opacity: fullLoaded ? 1 : 0,
+                      opacity: showFull ? 1 : 0,
                       transition: 'opacity 220ms ease',
                       backgroundColor: 'transparent',
                     }}
