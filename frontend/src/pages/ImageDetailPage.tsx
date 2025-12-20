@@ -343,7 +343,7 @@ const ImageDetailPage: React.FC = () => {
           }}
         >
           <Card>
-            <CardContent>
+            <CardContent sx={{ padding: '0 !important' }}>
               <Box
                 sx={{
                   position: 'relative',
