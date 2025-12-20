@@ -13,6 +13,7 @@ import UploadPage from "./pages/UploadPage";
 import BrowsePage from "./pages/BrowsePage";
 import ImageDetailPage from "./pages/ImageDetailPage";
 import SettingsPage from "./pages/SettingsPage";
+import ScrollTopButton from "./components/ScrollTopButton";
 
 const LoadingScreen = () => (
   <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -82,6 +83,8 @@ const App: React.FC = () => {
         </Route>
         <Route path="*" element={<Navigate to={defaultPath} replace />} />
       </Routes>
+      {/* 任务：全局挂载“回到顶部”浮动按钮 */}
+      <ScrollTopButton />
     </BrowserRouter>
   );
 };

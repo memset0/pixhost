@@ -12,6 +12,11 @@ body {
   background: radial-gradient(circle at top left, #f4efe8, #f7f3ef 45%, #ece4da 100%);
 }
 
+/* 任务：全局启用浏览器原生平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+
 #root {
   min-height: 100vh;
 }
