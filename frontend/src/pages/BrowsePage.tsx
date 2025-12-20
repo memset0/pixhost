@@ -56,7 +56,7 @@ type WaterfallMeta = {
 // 任务：瀑布流卡片高度限制在可视范围内，按宽高比自适应后若仍不满足则等比缩放至区间
 // 方案：定义全局最小/最大高度，计算列高度时统一按限制后的显示高度，避免布局与视觉高度不一致
 const MIN_CARD_HEIGHT = 100;
-const MAX_CARD_HEIGHT = 600;
+const MAX_CARD_HEIGHT = 400;
 
 const getDisplayHeight = (aspect: number, columnWidth: number) => {
   if (!columnWidth) return 0;
@@ -393,6 +393,9 @@ const BrowsePage: React.FC = () => {
     const cached = localStorage.getItem("browse_layout");
     return cached === "list" ? "list" : "waterfall";
   });
+  // 任务：视图切换后重新从第一页开始加载，避免在另一种视图加载过多数据导致切换卡顿
+  // 方案：记录视图切换计数并写入 queryKey，每次切换都会触发 React Query 全量重取，同时清空瀑布流元数据
+  const [layoutReloadVersion, setLayoutReloadVersion] = useState(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const waterfallRef = useRef<HTMLDivElement | null>(null);
   const theme = useTheme();
@@ -406,7 +409,7 @@ const BrowsePage: React.FC = () => {
   const reflowedColsRef = useRef(cols);
 
   const query = useInfiniteQuery({
-    queryKey: ["images", tags, tagMode],
+    queryKey: ["images", tags, tagMode, layoutReloadVersion],
     queryFn: ({ pageParam = 1 }) => fetchImages(pageParam, tags, tagMode),
     getNextPageParam: (lastPage) => {
       const current = lastPage.page * lastPage.page_size;
@@ -451,15 +454,22 @@ const BrowsePage: React.FC = () => {
   }, [items]);
 
   useEffect(() => {
+    // 任务：切换视图后重新绑定容器宽度监听，避免容器被卸载导致宽度变成 0/负值从而卡片高度被夹到最小值
+    // 方案：依赖 layout 重新注册 ResizeObserver，并对计算结果做下限 0 保护
     const container = waterfallRef.current;
-    if (!container) return;
+    if (!container) {
+      setColumnWidth(0);
+      return;
+    }
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
-      setColumnWidth((entry.contentRect.width - 16 * (cols - 1)) / cols);
+      const width = entry?.contentRect?.width ?? 0;
+      const next = width > 0 ? (width - 16 * (cols - 1)) / cols : 0;
+      setColumnWidth(Math.max(next, 0));
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [cols]);
+  }, [cols, layout]);
 
   useEffect(() => {
     if (!columnWidth || reflowedColsRef.current === cols) return;
@@ -514,6 +524,16 @@ const BrowsePage: React.FC = () => {
     localStorage.setItem("browse_layout", layout);
   }, [layout]);
 
+  const handleLayoutChange = useCallback(
+    (_: unknown, value: "waterfall" | "list" | null) => {
+      if (!value || value === layout) return;
+      setLayout(value);
+      setLayoutReloadVersion((prev) => prev + 1);
+      setMetas({});
+    },
+    [layout]
+  );
+
   const columns = useMemo(() => {
     const result = Array.from({ length: cols }, () => [] as any[]);
     items.forEach((item: any) => {
@@ -531,6 +551,15 @@ const BrowsePage: React.FC = () => {
         浏览图片
       </Typography>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+        <ToggleButtonGroup
+          exclusive
+          value={layout}
+          onChange={handleLayoutChange}
+          size="small"
+        >
+          <ToggleButton value="waterfall">瀑布流</ToggleButton>
+          <ToggleButton value="list">列表</ToggleButton>
+        </ToggleButtonGroup>
         <TextField
           label="标签过滤 (逗号分隔)"
           value={tags}
@@ -549,15 +578,6 @@ const BrowsePage: React.FC = () => {
             <MenuItem value="any">OR</MenuItem>
           </Select>
         </FormControl>
-        <ToggleButtonGroup
-          exclusive
-          value={layout}
-          onChange={(_, value) => value && setLayout(value)}
-          size="small"
-        >
-          <ToggleButton value="waterfall">瀑布流</ToggleButton>
-          <ToggleButton value="list">列表</ToggleButton>
-        </ToggleButtonGroup>
       </Stack>
 
       {layout === "waterfall" && (
