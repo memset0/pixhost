@@ -1,0 +1,1 @@
+- Let it crash 原则，非必要不适用 try-catch
