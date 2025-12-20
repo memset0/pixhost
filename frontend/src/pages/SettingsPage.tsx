@@ -1,99 +1,87 @@
 // 任务：提供用户设置与全站设置页面
 // 方案：改密接口 + 管理员配置接口（站点名称/图标）
 
-import React, { useState } from "react";
-import {
-  Stack,
-  Typography,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Alert,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-} from "@mui/material";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState } from 'react';
+import { Stack, Typography, Card, CardContent, TextField, Button, Alert, Divider, List, ListItem, ListItemText } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 
-import api from "../api/client";
-import { useAuth } from "./auth/AuthProvider";
-import { fileToBase64 } from "../utils/fileToBase64";
+import api from '../api/client';
+import { useAuth } from './auth/AuthProvider';
+import { fileToBase64 } from '../utils/fileToBase64';
 
 const SettingsPage: React.FC = () => {
   const { user, role } = useAuth();
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
-  const [siteName, setSiteName] = useState("");
-  const [allowedExts, setAllowedExts] = useState("");
+  const [siteName, setSiteName] = useState('');
+  const [allowedExts, setAllowedExts] = useState('');
   const [pageSize, setPageSize] = useState(20);
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
 
   const configQuery = useQuery({
-    queryKey: ["config"],
+    queryKey: ['config'],
     queryFn: async () => {
-      const response = await api.get("/admin/config");
+      const response = await api.get('/admin/config');
       return response.data;
     },
-    enabled: role === "admin",
+    enabled: role === 'admin',
     onSuccess: (data) => {
-      setSiteName(data.site_name || "");
-      setAllowedExts(data.upload_allowed_exts || "");
+      setSiteName(data.site_name || '');
+      setAllowedExts(data.upload_allowed_exts || '');
       setPageSize(data.pagination_page_size || 20);
     },
   });
 
   const pendingQuery = useQuery({
-    queryKey: ["admin", "pending"],
+    queryKey: ['admin', 'pending'],
     queryFn: async () => {
-      const response = await api.get("/admin/users", { params: { role: "pending", page: 1, page_size: 50 } });
+      const response = await api.get('/admin/users', { params: { role: 'pending', page: 1, page_size: 50 } });
       return response.data;
     },
-    enabled: role === "admin",
+    enabled: role === 'admin',
   });
 
   const userListQuery = useQuery({
-    queryKey: ["admin", "users"],
+    queryKey: ['admin', 'users'],
     queryFn: async () => {
-      const response = await api.get("/admin/users", { params: { page: 1, page_size: 200 } });
+      const response = await api.get('/admin/users', { params: { page: 1, page_size: 200 } });
       return response.data;
     },
-    enabled: role === "admin",
+    enabled: role === 'admin',
   });
 
   const updatePassword = async () => {
-    setNotice("");
-    setError("");
+    setNotice('');
+    setError('');
     if (newPassword.length < 6) {
-      setError("新密码长度至少 6 位");
+      setError('新密码长度至少 6 位');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("两次输入的密码不一致");
+      setError('两次输入的密码不一致');
       return;
     }
     try {
-      await api.patch("/users/me/password", {
+      await api.patch('/users/me/password', {
         old_password: oldPassword,
         new_password: newPassword,
       });
-      setNotice("密码已更新");
-      setOldPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      setNotice('密码已更新');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (err: any) {
-      setError(err?.response?.data?.error?.message || "更新失败");
+      setError(err?.response?.data?.error?.message || '更新失败');
     }
   };
 
   const updateConfig = async () => {
-    setNotice("");
-    setError("");
+    setNotice('');
+    setError('');
     try {
       const payload: Record<string, string | number> = {};
       if (siteName) payload.site_name = siteName;
@@ -102,12 +90,12 @@ const SettingsPage: React.FC = () => {
       if (faviconFile) {
         payload.favicon_base64 = await fileToBase64(faviconFile);
       }
-      await api.put("/admin/config", payload);
-      setNotice("配置已保存");
+      await api.put('/admin/config', payload);
+      setNotice('配置已保存');
       setFaviconFile(null);
       configQuery.refetch();
     } catch (err: any) {
-      setError(err?.response?.data?.error?.message || "保存失败");
+      setError(err?.response?.data?.error?.message || '保存失败');
     }
   };
 
@@ -139,9 +127,7 @@ const SettingsPage: React.FC = () => {
             <Typography>用户名：{user?.username}</Typography>
             <Typography>邮箱：{user?.email}</Typography>
             <Typography>角色：{user?.role}</Typography>
-            {role === "pending" && (
-              <Alert severity="warning">账号正在等待管理员审批，暂无法上传或浏览图片。</Alert>
-            )}
+            {role === 'pending' && <Alert severity="warning">账号正在等待管理员审批，暂无法上传或浏览图片。</Alert>}
           </Stack>
         </CardContent>
       </Card>
@@ -152,24 +138,9 @@ const SettingsPage: React.FC = () => {
             修改密码
           </Typography>
           <Stack spacing={2}>
-            <TextField
-              label="旧密码"
-              type="password"
-              value={oldPassword}
-              onChange={(event) => setOldPassword(event.target.value)}
-            />
-            <TextField
-              label="新密码"
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-            <TextField
-              label="确认新密码"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
+            <TextField label="旧密码" type="password" value={oldPassword} onChange={(event) => setOldPassword(event.target.value)} />
+            <TextField label="新密码" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            <TextField label="确认新密码" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
             <Button variant="contained" onClick={updatePassword}>
               保存密码
             </Button>
@@ -177,37 +148,19 @@ const SettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {role === "admin" && (
+      {role === 'admin' && (
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
               全站设置
             </Typography>
             <Stack spacing={2}>
-              <TextField
-                label="站点名称"
-                value={siteName}
-                onChange={(event) => setSiteName(event.target.value)}
-              />
-              <TextField
-                label="允许上传后缀 (逗号分隔)"
-                value={allowedExts}
-                onChange={(event) => setAllowedExts(event.target.value)}
-              />
-              <TextField
-                label="分页大小"
-                type="number"
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-              />
+              <TextField label="站点名称" value={siteName} onChange={(event) => setSiteName(event.target.value)} />
+              <TextField label="允许上传后缀 (逗号分隔)" value={allowedExts} onChange={(event) => setAllowedExts(event.target.value)} />
+              <TextField label="分页大小" type="number" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} />
               <Button variant="outlined" component="label">
                 上传 Favicon
-                <input
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  onChange={(event) => setFaviconFile(event.target.files?.[0] || null)}
-                />
+                <input type="file" hidden accept="image/*" onChange={(event) => setFaviconFile(event.target.files?.[0] || null)} />
               </Button>
               <Divider />
               <Button variant="contained" onClick={updateConfig}>
@@ -218,7 +171,7 @@ const SettingsPage: React.FC = () => {
         </Card>
       )}
 
-      {role === "admin" && (
+      {role === 'admin' && (
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
@@ -233,7 +186,6 @@ const SettingsPage: React.FC = () => {
               {pendingQuery.data?.items?.map((item: any) => (
                 <ListItem
                   key={item.id}
-                  divider
                   secondaryAction={
                     <Button variant="contained" onClick={() => approveUser(item.id)}>
                       批准
@@ -248,7 +200,7 @@ const SettingsPage: React.FC = () => {
         </Card>
       )}
 
-      {role === "admin" && (
+      {role === 'admin' && (
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
@@ -256,27 +208,23 @@ const SettingsPage: React.FC = () => {
             </Typography>
             <List>
               {userListQuery.data?.items
-                ?.filter((item: any) => item.role !== "pending")
+                ?.filter((item: any) => item.role !== 'pending')
                 .map((item: any) => (
                   <ListItem
                     key={item.id}
-                    divider
                     secondaryAction={
-                      item.role === "user" ? (
-                        <Button variant="outlined" onClick={() => changeRole(item.id, "admin")}>
+                      item.role === 'user' ? (
+                        <Button variant="outlined" onClick={() => changeRole(item.id, 'admin')}>
                           设为管理员
                         </Button>
                       ) : (
-                        <Button variant="outlined" onClick={() => changeRole(item.id, "user")}>
+                        <Button variant="outlined" onClick={() => changeRole(item.id, 'user')}>
                           降级为用户
                         </Button>
                       )
                     }
                   >
-                    <ListItemText
-                      primary={`${item.username} (${item.role})`}
-                      secondary={item.email}
-                    />
+                    <ListItemText primary={`${item.username} (${item.role})`} secondary={item.email} />
                   </ListItem>
                 ))}
             </List>
