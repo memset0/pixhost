@@ -1,7 +1,9 @@
 // 任务：提供拖拽/选择上传与进度展示
 // 方案：多文件并行调用 /images，并在成功后给出复制链接
+// 任务：支持剪贴板图片粘贴上传，满足 Ctrl+V 快速导入
+// 方案：监听全局 paste 事件，筛选 image/* Blob 转为 File，复用已有 handleFiles 与上传流程
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Button, Card, CardContent, LinearProgress, Typography, Stack, Alert } from '@mui/material';
 
 import api from '../api/client';
@@ -52,9 +54,10 @@ const UploadPage: React.FC = () => {
   );
 
   const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const newItems = Array.from(files).map((file) => ({
+    (files: FileList | File[] | null) => {
+      const fileArray = files instanceof FileList ? Array.from(files) : files;
+      if (!fileArray || fileArray.length === 0) return;
+      const newItems = fileArray.map((file) => ({
         id: `${file.name}-${file.lastModified}-${Math.random()}`,
         file,
         progress: 0,
@@ -77,6 +80,44 @@ const UploadPage: React.FC = () => {
     setNotice('已复制链接到剪贴板');
     setTimeout(() => setNotice(''), 1500);
   };
+
+  // 任务：为上传页添加 Ctrl+V 粘贴图片上传
+  // 方案：监听 window paste，过滤 image/* 项，转换为 File 后复用 handleFiles 与现有上传提示
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      const clipboardItems = event.clipboardData?.items;
+      if (!clipboardItems || clipboardItems.length === 0) return;
+      const imageItems = Array.from(clipboardItems).filter((item) => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      event.preventDefault();
+      const now = Date.now();
+      const pastedFiles = imageItems
+        .map((item, index) => {
+          const file = item.getAsFile();
+          if (!file) return null;
+          const fallbackExt = item.type.split('/')[1] || 'png';
+          const name = file.name?.trim() ? file.name : `pasted-${now}-${index}.${fallbackExt}`;
+          return new File([file], name, { type: item.type || 'image/png', lastModified: now });
+        })
+        .filter(Boolean) as File[];
+
+      if (pastedFiles.length === 0) return;
+      setNotice('检测到剪贴板图片，已加入上传');
+      setTimeout(() => setNotice(''), 1500);
+      handleFiles(pastedFiles);
+    },
+    [handleFiles]
+  );
+
+  useEffect(() => {
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handlePaste]);
 
   return (
     <Stack spacing={3}>
