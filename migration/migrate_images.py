@@ -93,7 +93,7 @@ def _build_metadata(file_path: Path, relpath: str, override: Optional[Dict]) -> 
     year_str, month_str, day_str, filename = relpath.split("/", 3)
     base_dt = datetime(int(year_str), int(month_str), int(day_str))
     upload_dt = _parse_time((override or {}).get("upload_time"), base_dt)
-    original_name = (override or {}).get("original_name")
+    original_name = (override or {}).get("original_name") or filename
 
     mime_type, _ = mimetypes.guess_type(filename)
     sha256 = _calc_sha256(file_path)
@@ -188,15 +188,15 @@ def _upsert_related(session, image, meta: Dict):
 
 
 def _update_image(session, image, meta: Dict):
-    image.original_filename = meta["original_filename"]
+    if not image.original_filename and meta["original_filename"]:
+        image.original_filename = meta["original_filename"]
     image.ext = meta["ext"]
     image.hash = meta["hash"]
     image.storage_relpath = meta["storage_relpath"]
     image.size_bytes = meta["size_bytes"]
     image.mime_type = meta["mime_type"]
     image.sha256 = meta["sha256"]
-    image.created_at = meta["created_at"]
-    image.updated_at = meta["created_at"]
+    # 任务：已存在记录不回写上传时间，保留原 created_at/updated_at
     _upsert_related(session, image, meta)
     upsert_thumbnail(session, image)
 

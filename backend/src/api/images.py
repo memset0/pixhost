@@ -34,10 +34,9 @@ def _build_public_image_url(image) -> str:
     if base_url:
         prefix = base_url.rstrip("/")
     else:
-        # 对于 Starlette/ASGI 场景，request.base_url 可能是 URL 对象，需用 str() 转换
-        base_url_str = str(request.base_url)
-        # 去除结尾的"/"
-        prefix = base_url_str.rstrip("/")
+        # 任务：迁移图片外链 404，因为 fallback 误用 request.base_url 携带 /api/images 路径
+        # 方案：默认使用 host_url 仅保留域名与端口，避免带上当前请求路径，确保拼出的 /images/{relpath} 可访问
+        prefix = str(request.base_url).rstrip("/")
     return f"{prefix}/images/{image.storage_relpath}"
 
 
@@ -89,7 +88,11 @@ def list_images(
         size = min(size, max_size)
         offset = (page - 1) * size
 
-        query = session.query(ImageModel).order_by(ImageModel.created_at.desc())
+        # 任务：列表排序不依赖 ID 代表时间，避免迁移数据 ID/时间不一致导致分页抖动
+        # 方案：主按 created_at 降序，辅以 id 降序做稳定性兜底
+        query = session.query(ImageModel).order_by(
+            ImageModel.created_at.desc(), ImageModel.id.desc()
+        )
 
         if not include_deleted or current.role != "admin":
             query = query.filter(ImageModel.is_deleted.is_(False))
