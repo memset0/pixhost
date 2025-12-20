@@ -28,8 +28,8 @@ python app.py  # 内部使用 uvicorn 跑 ASGI，路由才会生效
 
 ```bash
 cd /mnt/shared-storage-user/p1-shared/wuyulun/project/homework/pixhost/frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 - 默认开发端口 5173
