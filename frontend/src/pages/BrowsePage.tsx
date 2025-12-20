@@ -157,6 +157,8 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
 
   return (
     <Grow key={growKey} in={thumbLoaded} appear timeout={260}>
+      {/* 任务：浏览卡片 hover 时图片等比轻微放大（已有缩放基础上继续缩放） */}
+      {/* 方案：为图片层统一添加 scale 过渡，并在卡片 hover 下将图片 scale 到 1.04，保持 objectFit 不变避免拉伸 */}
       <Box
         component={RouterLink as any}
         to={`/images/${item.id}`}
@@ -166,6 +168,9 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
             opacity: 1,
             visibility: "visible",
             transform: "translateY(0)",
+          },
+          "&:hover .waterfall-image": {
+            transform: "scale(1.1)",
           },
         }}
       >
@@ -214,13 +219,15 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
               alt={`thumbnail-${item.id}`}
               onLoad={() => setThumbLoaded(true)}
               loading="lazy"
+              className="waterfall-image"
               sx={{
                 display: "block",
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
                 filter: fullLoaded ? "blur(0px)" : "blur(1px)",
-                transition: "filter 180ms ease, opacity 180ms ease",
+                transform: "scale(1)",
+                transition: "filter 180ms ease, opacity 180ms ease, transform 260ms ease",
               }}
             />
             {thumbLoaded && (
@@ -230,6 +237,7 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
               alt={`image-${item.id}`}
               loading="lazy"
               onLoad={() => setFullLoaded(true)}
+              className="waterfall-image"
               sx={{
                 position: "absolute",
                 inset: 0,
@@ -237,7 +245,8 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
                 height: "100%",
                 objectFit: "cover",
                 opacity: fullLoaded ? 1 : 0,
-                transition: "opacity 200ms ease",
+                transform: "scale(1)",
+                transition: "opacity 200ms ease, transform 260ms ease",
               }}
             />
           )}
