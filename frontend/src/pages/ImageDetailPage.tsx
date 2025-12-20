@@ -338,8 +338,6 @@ const ImageDetailPage: React.FC = () => {
                   position: 'relative',
                   borderRadius: 1,
                   overflow: 'hidden',
-                  bgcolor: 'grey.100',
-                  minHeight: 320,
                 }}
               >
                 {thumbUrl && (
