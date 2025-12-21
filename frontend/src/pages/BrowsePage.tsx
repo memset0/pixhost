@@ -27,18 +27,21 @@ import {
   Tooltip,
   Snackbar,
   useMediaQuery,
+  Pagination,
+  Skeleton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import api from "../api/client";
 
-const fetchImages = async (page: number, tags: string, tagMode: string) => {
+const fetchImages = async (page: number, tags: string, tagMode: string, pageSize?: number) => {
   const response = await api.get("/images", {
     params: {
       page,
+      page_size: pageSize,
       tags: tags || undefined,
       tag_mode: tagMode,
     },
@@ -52,6 +55,8 @@ type WaterfallMeta = {
   column: number | null;
   order: number | null;
 };
+
+const PAGE_SIZE = 20;
 
 // 任务：瀑布流卡片高度限制在可视范围内，按宽高比自适应后若仍不满足则等比缩放至区间
 // 方案：定义全局最小/最大高度，计算列高度时统一按限制后的显示高度，避免布局与视觉高度不一致
@@ -416,51 +421,74 @@ const BrowsePage: React.FC = () => {
   const [columnWidth, setColumnWidth] = useState(0);
   const [metas, setMetas] = useState<Record<string, WaterfallMeta>>({});
   const reflowedColsRef = useRef(cols);
+  const [page, setPage] = useState(1);
 
-  const query = useInfiniteQuery({
-    queryKey: ["images", tags, tagMode, layoutReloadVersion],
-    queryFn: ({ pageParam = 1 }) => fetchImages(pageParam, tags, tagMode),
+  const waterfallQuery = useInfiniteQuery({
+    queryKey: ["images", "waterfall", tags, tagMode, layoutReloadVersion],
+    queryFn: ({ pageParam = 1 }) => fetchImages(pageParam, tags, tagMode, PAGE_SIZE),
     getNextPageParam: (lastPage) => {
       const current = lastPage.page * lastPage.page_size;
       if (current >= lastPage.total) return undefined;
       return lastPage.page + 1;
     },
+    enabled: layout === "waterfall",
+  });
+
+  const listQuery = useQuery({
+    queryKey: ["images", "list", page, tags, tagMode],
+    queryFn: () => fetchImages(page, tags, tagMode, PAGE_SIZE),
+    enabled: layout === "list",
   });
 
   const items = useMemo(() => {
-    return query.data?.pages.flatMap((page: any) => page.items) || [];
-  }, [query.data]);
+    if (layout === "waterfall") {
+      return waterfallQuery.data?.pages.flatMap((page: any) => page.items) || [];
+    }
+    return listQuery.data?.items || [];
+  }, [layout, listQuery.data, waterfallQuery.data]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / PAGE_SIZE));
+  }, [listQuery.data]);
 
   useEffect(() => {
+    setPage(1);
+  }, [tags, tagMode]);
+
+  useEffect(() => {
+    if (layout !== "waterfall") return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
     const observer = new IntersectionObserver((entries) => {
       const [entry] = entries;
-      if (entry.isIntersecting && query.hasNextPage && !query.isFetchingNextPage) {
-        query.fetchNextPage();
+      if (entry.isIntersecting && waterfallQuery.hasNextPage && !waterfallQuery.isFetchingNextPage) {
+        waterfallQuery.fetchNextPage();
       }
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [query.hasNextPage, query.isFetchingNextPage]);
+  }, [layout, waterfallQuery.hasNextPage, waterfallQuery.isFetchingNextPage, waterfallQuery.fetchNextPage]);
 
   // 任务：图片无固定高度，保持原始宽高比并按最矮列放置，列变化时重新分配
   // 方案：记录图片加载得到的宽高比，计算列宽，按数据顺序把已加载图片落到当前高度最矮的列（同高取最左），列数变化时整体按顺序重排；所有展示节点使用 Grow 动画出现
   useEffect(() => {
-    const nextMetas: Record<string, WaterfallMeta> = {};
-    items.forEach((item: any, index: number) => {
-      const existing = metas[item.id];
-      nextMetas[item.id] = existing
-        ? existing
-        : { aspect: 1, loaded: false, column: null, order: index };
-      // 确保顺序稳定：列表顺序即分配顺序
-      if (existing && existing.order === null) {
-        nextMetas[item.id] = { ...existing, order: index };
-      }
+    if (layout !== "waterfall") return;
+    setMetas((prev) => {
+      const nextMetas: Record<string, WaterfallMeta> = {};
+      items.forEach((item: any, index: number) => {
+        const existing = prev[item.id];
+        nextMetas[item.id] = existing
+          ? existing
+          : { aspect: 1, loaded: false, column: null, order: index };
+        // 确保顺序稳定：列表顺序即分配顺序
+        if (existing && existing.order === null) {
+          nextMetas[item.id] = { ...existing, order: index };
+        }
+      });
+      return nextMetas;
     });
-    setMetas(nextMetas);
-  }, [items]);
+  }, [items, layout]);
 
   useEffect(() => {
     // 任务：切换视图后重新绑定容器宽度监听，避免容器被卸载导致宽度变成 0/负值从而卡片高度被夹到最小值
@@ -481,15 +509,17 @@ const BrowsePage: React.FC = () => {
   }, [cols, layout]);
 
   useEffect(() => {
+    if (layout !== "waterfall") return;
     if (!columnWidth || reflowedColsRef.current === cols) return;
     setMetas((prev) => reflowLoadedColumns(prev, cols, columnWidth));
     reflowedColsRef.current = cols;
-  }, [cols, columnWidth]);
+  }, [cols, columnWidth, layout]);
 
   useEffect(() => {
+    if (layout !== "waterfall") return;
     if (!columnWidth) return;
     setMetas((prev) => fillPendingColumns(prev, cols, columnWidth));
-  }, [columnWidth, cols]);
+  }, [columnWidth, cols, layout]);
 
   // 任务：为列表图片提供一键复制外链的交互
   // 方案：使用后端返回的 public_url，通过剪贴板 API 写入并轻提示
@@ -539,11 +569,17 @@ const BrowsePage: React.FC = () => {
       setLayout(value);
       setLayoutReloadVersion((prev) => prev + 1);
       setMetas({});
+      setPage(1);
     },
     [layout]
   );
 
+  const handlePageChange = useCallback((_: unknown, value: number) => {
+    setPage(value);
+  }, []);
+
   const columns = useMemo(() => {
+    if (layout !== "waterfall") return [];
     const result = Array.from({ length: cols }, () => [] as any[]);
     items.forEach((item: any) => {
       const meta = metas[item.id];
@@ -552,7 +588,12 @@ const BrowsePage: React.FC = () => {
       }
     });
     return result;
-  }, [cols, items, metas]);
+  }, [cols, items, metas, layout]);
+
+  const isWaterfallLoading = layout === "waterfall" && waterfallQuery.isLoading;
+  const isListLoading = layout === "list" && (!listQuery.data || listQuery.isLoading);
+  const showListSkeleton = layout === "list" && (!listQuery.data || listQuery.isLoading);
+  const showEmpty = items.length === 0 && !isWaterfallLoading && !isListLoading;
 
   return (
     <Stack spacing={3}>
@@ -628,48 +669,103 @@ const BrowsePage: React.FC = () => {
       )}
 
       {layout === "list" && (
-        <TableContainer
-          component={Paper}
-          variant="outlined"
-          sx={{ backgroundColor: "transparent", boxShadow: "none" }}
-        >
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  ID
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  图片
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  原始文件名
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  大小
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  上传时间
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  操作
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item: any) => (
-                <ListRow key={item.id} item={item} copyLink={copyLink} refetch={query.refetch} />
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Stack spacing={2}>
+          {/* 任务：表格视图分页（20 条/页）并在上下方提供翻页器，未加载数据时用 20 条固定宽高骨架撑住布局 */}
+          {/* 方案：列表查询 page_size=20，Pagination 置于表格上下，缺页数据或加载态时渲染 20 行骨架（包含固定比例缩略图占位），避免宽高比变化导致漂移 */}
+          <Stack direction="row" justifyContent="flex-end">
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={handlePageChange}
+              showFirstButton
+              showLastButton
+              color="primary"
+              size={upSm ? "medium" : "small"}
+            />
+          </Stack>
+          <TableContainer
+            component={Paper}
+            variant="outlined"
+            sx={{ backgroundColor: "transparent", boxShadow: "none" }}
+          >
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    ID
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    图片
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    原始文件名
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    大小
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    上传时间
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>
+                    操作
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {showListSkeleton &&
+                  Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell align="center">
+                        <Skeleton width={48} sx={{ mx: "auto" }} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Skeleton
+                          variant="rectangular"
+                          width={140}
+                          height={90}
+                          sx={{ borderRadius: 1, mx: "auto" }}
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Skeleton width={160} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Skeleton width={80} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Skeleton width={140} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Skeleton width={180} sx={{ mx: "auto" }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                {!showListSkeleton &&
+                  items.map((item: any) => (
+                    <ListRow key={item.id} item={item} copyLink={copyLink} refetch={listQuery.refetch} />
+                  ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Stack direction="row" justifyContent="flex-end">
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={handlePageChange}
+              showFirstButton
+              showLastButton
+              color="primary"
+              size={upSm ? "medium" : "small"}
+            />
+          </Stack>
+        </Stack>
       )}
-      {items.length === 0 && !query.isLoading && (
+      {showEmpty && (
         <Typography variant="body1" color="text.secondary">
           暂无图片，先去上传吧。
         </Typography>
       )}
-      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      {layout === "waterfall" && <Box ref={sentinelRef} sx={{ height: 1 }} />}
       <Snackbar
         open={Boolean(notice)}
         autoHideDuration={1500}
