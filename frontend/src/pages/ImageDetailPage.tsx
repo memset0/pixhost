@@ -110,7 +110,7 @@ const ImageDetailPage: React.FC = () => {
         <Box
           sx={{
             position: 'relative',
-            borderRadius: 1.5,
+            borderRadius: 1,
             border: '1px dashed',
             borderColor: 'divider',
             bgcolor: 'grey.50',
@@ -355,7 +355,6 @@ const ImageDetailPage: React.FC = () => {
                   overflow: 'hidden',
                   bgcolor: 'grey.50',
                   aspectRatio,
-                  minHeight: 240,
                 }}
               >
                 {showSkeleton && <Skeleton variant="rectangular" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />}
