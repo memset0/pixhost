@@ -97,6 +97,21 @@ const ImageDetailPage: React.FC = () => {
     };
   }, [previewUrl]);
 
+  // 任务：AI 生成失败时展示后端错误信息，便于定位配置/权限问题
+  // 方案：优先读取后端 error.message，其次退回 HTTP 状态或异常信息
+  const buildAiErrorNotice = (error: unknown) => {
+    if (error && typeof error === 'object') {
+      const response = (error as { response?: { data?: { error?: { message?: string }; message?: string }; status?: number } }).response;
+      const message = response?.data?.error?.message || response?.data?.message;
+      if (message) return `AI 标签生成失败：${message}`;
+      if (response?.status) return `AI 标签生成失败：HTTP ${response.status}`;
+    }
+    if (error instanceof Error && error.message) {
+      return `AI 标签生成失败：${error.message}`;
+    }
+    return 'AI 标签生成失败';
+  };
+
   const generateAiTags = async () => {
     if (!Number.isFinite(imageId)) return;
     setAiLoading(true);
@@ -106,7 +121,7 @@ const ImageDetailPage: React.FC = () => {
       setNotice(tags.length ? 'AI 标签已生成' : 'AI 未返回标签');
       await refetch();
     } catch (error) {
-      setNotice('AI 标签生成失败');
+      setNotice(buildAiErrorNotice(error));
     } finally {
       setAiLoading(false);
     }

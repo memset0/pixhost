@@ -6,3 +6,4 @@ bcrypt
 Pillow
 uvicorn
 requests
+PySocks
