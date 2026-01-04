@@ -14,7 +14,7 @@
 ### 1. 后端（Python）
 
 ```bash
-cd /mnt/shared-storage-user/p1-shared/wuyulun/project/homework/pixhost/backend
+cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -27,7 +27,7 @@ python app.py  # 内部使用 uvicorn 跑 ASGI，路由才会生效
 ### 2. 前端（React）
 
 ```bash
-cd /mnt/shared-storage-user/p1-shared/wuyulun/project/homework/pixhost/frontend
+cd frontend
 pnpm install
 pnpm run dev
 ```
@@ -46,8 +46,8 @@ pnpm run dev
 
 > 任务：一键启动前后端容器并共享配置/数据；方案：直接使用仓库根目录的 `docker-compose.yml`，后端跑 Python 3.10、前端跑 Node 22 + pnpm，容器网络互通，暴露 6007（后端）和 5173（前端）。
 
-1) 先确保本机安装了 Docker 与 docker-compose。
-2) 在项目根目录执行：
+1. 先确保本机安装了 Docker 与 docker-compose。
+2. 在项目根目录执行：
 
 ```bash
 docker-compose up
