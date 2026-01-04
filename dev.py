@@ -62,14 +62,20 @@ def start_service(name, command, cwd, color):
     # This allows us to kill the whole tree (shell + child) later
     preexec = os.setsid if os.name == 'posix' else None
     
-    process = subprocess.Popen(
-        command,
-        cwd=cwd,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        preexec_fn=preexec
-    )
+    shell_executable = "/bin/bash" if os.name == "posix" else None
+
+    popen_kwargs = {
+        "cwd": cwd,
+        "shell": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "preexec_fn": preexec
+    }
+
+    if shell_executable:
+        popen_kwargs["executable"] = shell_executable
+
+    process = subprocess.Popen(command, **popen_kwargs)
     
     processes.append(process)
     
