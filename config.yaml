@@ -24,7 +24,7 @@ security:
   jwt_exp_minutes: 120
 qwen:
   enabled: false
-  api_key: "YOUR_QWEN_API_KEY"
+  api_key: "sk-869243ee7dfe4aaeaa5cffbb31d74a34"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1/"
   model: "qwen3-vl-flash"
   max_retries: 3
