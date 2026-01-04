@@ -5,3 +5,4 @@ PyJWT
 bcrypt
 Pillow
 uvicorn
+requests

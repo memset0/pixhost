@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar, CircularProgress, Skeleton } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -28,6 +29,7 @@ const ImageDetailPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'crop' | 'hue' | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const resetPreview = useCallback(() => {
     setPreviewMode(null);
@@ -94,6 +96,21 @@ const ImageDetailPage: React.FC = () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  const generateAiTags = async () => {
+    if (!Number.isFinite(imageId)) return;
+    setAiLoading(true);
+    try {
+      const response = await api.post(`/images/${imageId}/ai-analyze`);
+      const tags = (response.data?.tags as string[]) || [];
+      setNotice(tags.length ? 'AI 标签已生成' : 'AI 未返回标签');
+      await refetch();
+    } catch (error) {
+      setNotice('AI 标签生成失败');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const renderPreviewArea = (mode: 'crop' | 'hue') => {
     const dims = computePreviewSize(mode);
@@ -490,12 +507,48 @@ const ImageDetailPage: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
-          }}
-        >
-          {/* 任务：右栏逐个展示复制/删除/标签操作，按钮/textarea 各占一行 */}
-          <Button variant="contained" onClick={copyPublicLink} fullWidth>
-            复制外链
-          </Button>
+        }}
+      >
+        {/* 任务：右栏逐个展示复制/删除/标签操作，按钮/textarea 各占一行 */}
+        {isOwner && (
+          <Box
+            sx={{
+              p: '2px',
+              borderRadius: 2,
+              background: 'linear-gradient(120deg, #00d1ff, #7c3aed, #ff6bce)',
+              boxShadow: '0 12px 30px rgba(88, 80, 236, 0.28)',
+            }}
+          >
+            <Button
+              startIcon={<AutoFixHighIcon />}
+              onClick={generateAiTags}
+              disabled={aiLoading}
+              fullWidth
+              sx={{
+                borderRadius: 1.6,
+                color: '#0b1224',
+                fontWeight: 800,
+                letterSpacing: 0.4,
+                py: 1.25,
+                background: 'linear-gradient(135deg, #f8fbff 0%, #eef2ff 50%, #e5edff 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 22px rgba(15, 23, 42, 0.15)',
+                textTransform: 'none',
+                transition: 'transform 140ms ease, box-shadow 140ms ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9), 0 10px 26px rgba(88, 80, 236, 0.25)',
+                  background: 'linear-gradient(135deg, #eef2ff 0%, #e5e9ff 50%, #dde7ff 100%)',
+                },
+              }}
+              endIcon={aiLoading ? <CircularProgress size={16} color="inherit" /> : null}
+            >
+              {aiLoading ? '生成中...' : 'AI 生成标签'}
+            </Button>
+          </Box>
+        )}
+        <Button variant="contained" onClick={copyPublicLink} fullWidth>
+          复制外链
+        </Button>
 
           {isOwner && !data.is_deleted && (
             <Button variant="contained" color="error" onClick={removeImage} fullWidth>

@@ -314,11 +314,15 @@ components:
     AiAnalyzeResponse:
       type: object
       properties:
+        source:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
         status:
           type: string
-        message:
-          type: string
-      required: [status, message]
+      required: [source, tags]
     McpSearchRequest:
       type: object
       properties:
@@ -1041,12 +1045,36 @@ paths:
           schema:
             type: integer
       responses:
-        '501':
-          description: Not implemented
+        '200':
+          description: AI tags generated
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiAnalyzeResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: AI provider error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/images/{image_id}/ai-status:
     get:
       operationId: src.api.ai.analyze_status
@@ -1059,12 +1087,24 @@ paths:
           schema:
             type: integer
       responses:
-        '501':
-          description: Not implemented
+        '200':
+          description: AI tagging status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiAnalyzeResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/mcp/search:
     post:
       operationId: src.api.mcp.search
