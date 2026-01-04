@@ -1,6 +1,7 @@
 # 任务：提供图片上传、列表、详情、编辑、删除等接口
 # 方案：按权限校验后操作数据库与磁盘文件
 
+import logging
 from datetime import datetime
 
 from connexion import request
@@ -13,6 +14,7 @@ from src.core.config_loader import get_config
 from src.core.errors import ApiError, ERROR_VALIDATION, ERROR_NOT_FOUND
 from src.models.image import Image as ImageModel
 from src.models.tag import Tag
+from src.services.ai_tag_service import generate_ai_tags
 from src.services.image_service import (
     save_upload,
     parse_tag_string,
@@ -44,6 +46,22 @@ def _build_public_image_url(image) -> str:
 # 方案：统一补零格式，确保与 build_storage_relpath 生成的格式一致
 def _compose_storage_relpath(year: int, month: int, day: int, filename: str) -> str:
     return f"{int(year):04d}/{int(month):02d}/{int(day):02d}/{filename}"
+
+
+# 任务：上传完成后按配置自动生成 AI 标签，不影响前端响应
+# 方案：读取 qwen.auto_tag_on_upload 开关，成功记日志并落库，失败仅 warning
+def _try_auto_ai_tags(session, image) -> None:
+    cfg = get_config()
+    auto_enabled = bool((cfg.get("qwen", {}) or {}).get("auto_tag_on_upload"))
+    if not auto_enabled:
+        return
+    try:
+        tags = generate_ai_tags(session, image)
+    except Exception as exc:
+        logging.warning("ai tag generation failed: id=%s error=%s", image.id, exc)
+        return
+    if tags:
+        logging.info("ai tags generated: id=%s tags=%s", image.id, tags)
 
 
 def _parse_crop_ratios(payload: dict) -> dict:
@@ -137,6 +155,7 @@ def upload_image(file, tags: str = ""):
 
         content_length = int(request.headers.get("Content-Length", 0))
         image = save_upload(session, file, current, tags or "", content_length)
+        _try_auto_ai_tags(session, image)
 
         auth_header = request.headers.get("Authorization", "")
         token = ""
