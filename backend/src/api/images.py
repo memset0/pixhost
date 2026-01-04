@@ -110,17 +110,23 @@ def list_images(
         total = query.count()
         items = query.offset(offset).limit(size).all()
 
+        items_data = []
+        for item in items:
+            summary = serialize_image_summary(session, item)
+            if not summary:
+                continue
+            items_data.append(
+                {
+                    **summary,
+                    "public_url": _build_public_image_url(item),
+                }
+            )
+
         return {
             "page": page,
             "page_size": size,
             "total": total,
-            "items": [
-                {
-                    **serialize_image_summary(session, item),
-                    "public_url": _build_public_image_url(item),
-                }
-                for item in items
-            ],
+            "items": items_data,
         }
 
 

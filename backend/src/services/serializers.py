@@ -1,7 +1,10 @@
 # 任务：将 ORM 对象序列化为 OpenAPI 定义的响应结构
 # 方案：针对列表与详情提供独立的序列化函数
+import logging
 
+from src.core.config_loader import get_config
 from src.services.thumbnail_service import upsert_thumbnail
+from src.utils.path_utils import resolve_path
 
 
 def serialize_user(user):
@@ -14,6 +17,14 @@ def serialize_user(user):
 
 
 def serialize_image_summary(session, image):
+    cfg = get_config()
+    image_path = resolve_path(cfg["storage"]["root_dir"]) / image.storage_relpath
+    if not image_path.exists():
+        logging.warning(
+            "skip image without file: id=%s path=%s", image.id, image_path
+        )
+        return None
+
     thumb_data = upsert_thumbnail(session, image)
     return {
         "id": image.id,

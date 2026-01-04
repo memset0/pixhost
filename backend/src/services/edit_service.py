@@ -1,12 +1,13 @@
 # 任务：处理图片编辑前备份与编辑后状态更新
 # 方案：编辑前复制原图到 backup 目录，编辑后清理缩略图
-
-from PIL import Image
-
+import logging
 import shutil
 from datetime import datetime
 
+from PIL import Image
+
 from src.core.config_loader import get_config
+from src.core.errors import ApiError, ERROR_NOT_FOUND
 from src.models.image_dimensions import ImageDimensions
 from src.utils.file_paths import build_backup_relpath, ensure_parent
 from src.utils.path_utils import resolve_path
@@ -21,6 +22,13 @@ def backup_original(image):
     ensure_parent(backup_path)
 
     source_path = resolve_path(cfg["storage"]["root_dir"]) / image.storage_relpath
+    if not source_path.exists():
+        logging.warning(
+            "skip edit because source file missing: id=%s path=%s",
+            image.id,
+            source_path,
+        )
+        raise ApiError(404, ERROR_NOT_FOUND, "image file not found")
     shutil.copy2(source_path, backup_path)
     return backup_path
 
