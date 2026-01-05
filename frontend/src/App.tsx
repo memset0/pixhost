@@ -13,6 +13,7 @@ import UploadPage from "./pages/UploadPage";
 import BrowsePage from "./pages/BrowsePage";
 import ImageDetailPage from "./pages/ImageDetailPage";
 import SettingsPage from "./pages/SettingsPage";
+import AiSearchPage from "./pages/AiSearchPage";
 import ScrollTopButton from "./components/ScrollTopButton";
 
 const LoadingScreen = () => (
@@ -68,6 +69,14 @@ const App: React.FC = () => {
             element={
               <RequireRole roles={["user", "admin"]}>
                 <BrowsePage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <RequireRole roles={["user", "admin"]}>
+                <AiSearchPage />
               </RequireRole>
             }
           />

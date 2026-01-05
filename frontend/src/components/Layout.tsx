@@ -8,6 +8,7 @@ import { useAuth } from "../pages/auth/AuthProvider";
 
 const navItems = [
   { label: "浏览", path: "/browse", restricted: true },
+  { label: "找图", path: "/search", restricted: true },
   { label: "上传", path: "/upload", restricted: true },
   { label: "设置", path: "/settings", restricted: false },
 ];

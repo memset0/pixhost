@@ -332,11 +332,19 @@ components:
     McpSearchResponse:
       type: object
       properties:
+        query:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        ai_output:
+          type: string
         items:
           type: array
           items:
-            type: object
-      required: [items]
+            $ref: '#/components/schemas/ImageSummary'
+      required: [query, tags, ai_output, items]
 paths:
   /api/health:
     get:
@@ -1117,8 +1125,8 @@ paths:
             schema:
               $ref: '#/components/schemas/McpSearchRequest'
       responses:
-        '501':
-          description: Not implemented
+        '200':
+          description: Search results
           content:
             application/json:
               schema:

@@ -13,6 +13,20 @@ _engine = None
 _SessionLocal = None
 
 
+def _normalize_db_url(db_url: str) -> str:
+    # 任务：让 sqlite 的相对路径与 config.yaml 同级目录对齐
+    # 方案：解析 sqlite:/// 后的路径，非内存库则用项目根目录补全为绝对路径
+    if not db_url.startswith("sqlite:///"):
+        return db_url
+    db_path = Path(db_url.replace("sqlite:///", "", 1))
+    if db_path.name == ":memory:":
+        return db_url
+    from src.utils.path_utils import resolve_path
+
+    resolved_path = resolve_path(str(db_path))
+    return f"sqlite:///{resolved_path}"
+
+
 def init_engine():
     global _engine, _SessionLocal
     if _engine is None:
@@ -20,6 +34,7 @@ def init_engine():
         db_url = cfg.get("database", {}).get("url")
         if not db_url:
             raise RuntimeError("database.url missing in config.yaml")
+        db_url = _normalize_db_url(db_url)
         if db_url.startswith("sqlite:///"):
             db_path = Path(db_url.replace("sqlite:///", "", 1))
             if db_path.name != ":memory:":
