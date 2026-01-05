@@ -1,4 +1,5 @@
 data/
+.pnpm-store/
 
 # ========== Node ==========
 

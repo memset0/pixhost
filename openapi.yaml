@@ -939,6 +939,14 @@ paths:
           required: true
           schema:
             type: string
+        # 任务：允许前端用版本号刷新图片缓存，避免严格校验拒绝未知参数
+        # 方案：为公开图片接口补充可选的 v query 参数，仅用于缓存控制
+        - in: query
+          name: v
+          required: false
+          schema:
+            type: string
+          description: Cache busting version string
       responses:
         '200':
           description: Public image file

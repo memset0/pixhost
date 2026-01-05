@@ -11,10 +11,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
+      - ./data:/app/data
       - ./backend:/app/backend
       - ./config.yaml:/app/config.yaml
       - ./openapi.yaml:/app/openapi.yaml
-      - ./data:/app/data
     ports:
       - "6007:6007"
     networks:

@@ -19,6 +19,9 @@ export default defineConfig({
       // 方案：Vite proxy 追加 /images 指向同一后端
       "/images": backendOrigin,
     },
+    watch: {
+      ignored: ["**/.pnpm-store/**", "**/node_modules/**"],
+    },
   },
   preview: {
     host: "0.0.0.0",
