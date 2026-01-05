@@ -148,6 +148,34 @@ def list_images(
         }
 
 
+# 任务：提供收藏图片列表给前端轮播组件使用
+# 方案：筛选 is_favorite 且未删除的图片，按创建时间倒序返回精简列表
+def list_favorites():
+    with session_scope() as session:
+        current = get_current_user(session)
+        require_role(current, ["user", "admin"])
+
+        query = (
+            session.query(ImageModel)
+            .filter(ImageModel.is_favorite.is_(True), ImageModel.is_deleted.is_(False))
+            .order_by(ImageModel.created_at.desc(), ImageModel.id.desc())
+        )
+
+        items_data = []
+        for item in query.all():
+            summary = serialize_image_summary(session, item)
+            if not summary:
+                continue
+            items_data.append(
+                {
+                    **summary,
+                    "public_url": _build_public_image_url(item),
+                }
+            )
+
+        return {"items": items_data}
+
+
 def upload_image(file, tags: str = ""):
     with session_scope() as session:
         current = get_current_user(session)
@@ -333,6 +361,32 @@ def delete_image(image_id: int):
 
         image.is_deleted = True
         image.deleted_at = datetime.utcnow()
+        return {"status": "ok"}
+
+
+# 任务：支持图片收藏状态切换
+# 方案：仅允许上传者操作，收藏与取消收藏分别写入 is_favorite
+def favorite_image(image_id: int):
+    with session_scope() as session:
+        current = get_current_user(session)
+        require_role(current, ["user", "admin"])
+
+        image = get_image_or_404(session, image_id)
+        require_owner(current, image)
+
+        image.is_favorite = True
+        return {"status": "ok"}
+
+
+def unfavorite_image(image_id: int):
+    with session_scope() as session:
+        current = get_current_user(session)
+        require_role(current, ["user", "admin"])
+
+        image = get_image_or_404(session, image_id)
+        require_owner(current, image)
+
+        image.is_favorite = False
         return {"status": "ok"}
 
 

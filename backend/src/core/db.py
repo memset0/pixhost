@@ -78,3 +78,18 @@ def init_db():
     from src import models  # noqa: F401  # 任务：触发模型导入，确保 Base 元数据完整
 
     Base.metadata.create_all(bind=_engine)
+
+    # 任务：为收藏功能补齐 images.is_favorite 列，兼容已有数据库
+    # 方案：检测 images 表字段，缺失时执行一次 ALTER TABLE 添加默认值列
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(_engine)
+    if "images" in inspector.get_table_names():
+        columns = {col["name"] for col in inspector.get_columns("images")}
+        if "is_favorite" not in columns:
+            with _engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE images ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"
+                    )
+                )

@@ -36,6 +36,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import api from "../api/client";
+import FavoriteCarousel from "../components/FavoriteCarousel";
 
 const fetchImages = async (page: number, tags: string, tagMode: string, pageSize?: number) => {
   const response = await api.get("/images", {
@@ -46,6 +47,13 @@ const fetchImages = async (page: number, tags: string, tagMode: string, pageSize
       tag_mode: tagMode,
     },
   });
+  return response.data;
+};
+
+// 任务：获取收藏列表供轮播组件使用，页面加载时拉取一次即可
+// 方案：调用 /images/favorites 并交给 React Query 缓存，不做轮询
+const fetchFavorites = async () => {
+  const response = await api.get("/images/favorites");
   return response.data;
 };
 
@@ -466,6 +474,14 @@ const BrowsePage: React.FC = () => {
     enabled: layout === "waterfall",
   });
 
+  const favoritesQuery = useQuery({
+    queryKey: ["images", "favorites"],
+    queryFn: fetchFavorites,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
   const listQuery = useQuery({
     queryKey: ["images", "list", page, tags, tagMode],
     queryFn: () => fetchImages(page, tags, tagMode, PAGE_SIZE),
@@ -652,9 +668,11 @@ const BrowsePage: React.FC = () => {
   const isListLoading = layout === "list" && (!listQuery.data || listQuery.isLoading);
   const showListSkeleton = layout === "list" && (!listQuery.data || listQuery.isLoading);
   const showEmpty = items.length === 0 && !isWaterfallLoading && !isListLoading;
+  const favoriteItems = favoritesQuery.data?.items || [];
 
   return (
     <Stack spacing={3}>
+      {favoriteItems.length > 0 && <FavoriteCarousel items={favoriteItems} />}
       <Typography variant="h4" sx={{ fontWeight: 700 }}>
         浏览图片
       </Typography>

@@ -37,6 +37,9 @@ def serialize_image_summary(session, image):
         },
         "tags": [tag.name for tag in image.tags],
         "is_deleted": image.is_deleted,
+        # 任务：列表接口补充收藏状态，用于前端渲染收藏按钮与轮播列表
+        # 方案：序列化 images.is_favorite，保持字段命名与数据库一致
+        "is_favorite": image.is_favorite,
     }
 
 
@@ -85,4 +88,7 @@ def serialize_image_detail(image):
         "created_at": image.created_at.isoformat() + "Z",
         "updated_at": image.updated_at.isoformat() + "Z",
         "is_deleted": image.is_deleted,
+        # 任务：详情接口补充收藏状态，便于详情页切换收藏/取消收藏
+        # 方案：直接返回 is_favorite 布尔字段
+        "is_favorite": image.is_favorite,
     }

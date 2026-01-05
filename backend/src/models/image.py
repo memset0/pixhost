@@ -24,6 +24,9 @@ class Image(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    # 任务：新增收藏状态，支撑前端收藏按钮与轮播列表
+    # 方案：在 images 表记录 is_favorite 布尔值，默认 false 并加索引便于查询
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     uploader = relationship("User", back_populates="images")

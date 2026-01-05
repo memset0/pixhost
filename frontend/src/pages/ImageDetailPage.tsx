@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar, CircularProgress, Skeleton } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -354,6 +356,20 @@ const ImageDetailPage: React.FC = () => {
     refetch();
   };
 
+  // 任务：支持详情页收藏/取消收藏按钮
+  // 方案：根据 is_favorite 调用收藏或取消收藏接口，完成后刷新详情
+  const toggleFavorite = async () => {
+    if (!Number.isFinite(imageId)) return;
+    if (data?.is_favorite) {
+      await api.delete(`/images/${imageId}/favorite`);
+      setNotice('已取消收藏');
+    } else {
+      await api.post(`/images/${imageId}/favorite`);
+      setNotice('已收藏');
+    }
+    refetch();
+  };
+
   const restoreImage = async () => {
     await api.post(`/images/${imageId}/restore`);
     setNotice('图片已恢复');
@@ -589,6 +605,17 @@ const ImageDetailPage: React.FC = () => {
           复制外链
         </Button>
 
+          {isOwner && (
+            <Button
+              variant={data.is_favorite ? 'outlined' : 'contained'}
+              color={data.is_favorite ? 'secondary' : 'primary'}
+              onClick={toggleFavorite}
+              fullWidth
+              startIcon={data.is_favorite ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+            >
+              {data.is_favorite ? '取消收藏' : '收藏图片'}
+            </Button>
+          )}
           {isOwner && !data.is_deleted && (
             <Button variant="contained" color="error" onClick={removeImage} fullWidth>
               删除图片
