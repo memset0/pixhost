@@ -63,6 +63,33 @@ const PAGE_SIZE = 20;
 const MIN_CARD_HEIGHT = 100;
 const MAX_CARD_HEIGHT = 400;
 
+// 任务：展示用图片路径不带 hostname，确保 Vite dev 可代理 /images
+// 方案：public_url 为绝对地址时取 pathname+search，已是相对路径时直接返回
+const toPublicPath = (publicUrl?: string) => {
+  if (!publicUrl) return "";
+  if (publicUrl.startsWith("http://") || publicUrl.startsWith("https://")) {
+    const url = new URL(publicUrl);
+    return `${url.pathname}${url.search}`;
+  }
+  if (publicUrl.startsWith("//")) {
+    const url = new URL(`http:${publicUrl}`);
+    return `${url.pathname}${url.search}`;
+  }
+  if (publicUrl.startsWith("/")) return publicUrl;
+  return `/${publicUrl}`;
+};
+
+// 任务：复制链接时确保带 hostname，便于外部分享
+// 方案：相对路径统一补 window.location.origin，绝对地址原样返回
+const toAbsolutePublicUrl = (publicUrl?: string) => {
+  if (!publicUrl) return "";
+  if (publicUrl.startsWith("http://") || publicUrl.startsWith("https://")) return publicUrl;
+  if (publicUrl.startsWith("//")) return `${window.location.protocol}${publicUrl}`;
+  const origin = window.location.origin.replace(/\/$/, "");
+  const path = publicUrl.startsWith("/") ? publicUrl : `/${publicUrl}`;
+  return `${origin}${path}`;
+};
+
 const getDisplayHeight = (aspect: number, columnWidth: number) => {
   if (!columnWidth) return 0;
   const raw = columnWidth * aspect;
@@ -149,6 +176,7 @@ type WaterfallCardProps = {
 const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, cols, copyLink }) => {
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [fullLoaded, setFullLoaded] = useState(false);
+  const fileUrl = toPublicPath(item.public_url);
 
   // 任务：浏览卡片 hover 才展示复制按钮与标签，并设定最小高度+阴影动态
   // 方案：卡片高度限制在 100-600px，若原始等比高度不在区间则等比缩放，不做单轴拉伸；hover 控制阴影与浮层显隐
@@ -238,7 +266,7 @@ const WaterfallCard: React.FC<WaterfallCardProps> = ({ item, meta, columnWidth, 
             {thumbLoaded && (
             <Box
               component="img"
-              src={item.public_url}
+              src={fileUrl}
               alt={`image-${item.id}`}
               loading="lazy"
               onLoad={() => setFullLoaded(true)}
@@ -298,6 +326,7 @@ type ListRowProps = {
 const ListRow: React.FC<ListRowProps> = ({ item, copyLink, refetch }) => {
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [fullLoaded, setFullLoaded] = useState(false);
+  const fileUrl = toPublicPath(item.public_url);
 
   useEffect(() => {
     setThumbLoaded(false);
@@ -342,7 +371,7 @@ const ListRow: React.FC<ListRowProps> = ({ item, copyLink, refetch }) => {
           {thumbLoaded && (
             <Box
               component="img"
-              src={item.public_url}
+              src={fileUrl}
               alt={`image-${item.id}`}
               loading="lazy"
               onLoad={() => setFullLoaded(true)}
@@ -550,10 +579,11 @@ const BrowsePage: React.FC = () => {
   }, [columnWidth, cols, layout]);
 
   // 任务：为列表图片提供一键复制外链的交互
-  // 方案：使用后端返回的 public_url，通过剪贴板 API 写入并轻提示
+  // 方案：public_url 统一补 hostname 后写入剪贴板，并轻提示
   const copyLink = async (url?: string) => {
-    if (!url) return;
-    await navigator.clipboard.writeText(url);
+    const link = toAbsolutePublicUrl(url);
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
     setNotice("已复制图片链接");
   };
 
@@ -691,7 +721,7 @@ const BrowsePage: React.FC = () => {
           {items.map((item: any) => {
             const meta = metas[item.id];
             if (meta?.loaded) return null;
-            return <ImageLoader key={`loader-${item.id}`} id={item.id} src={item.public_url} onLoad={handleImageLoad} />;
+            return <ImageLoader key={`loader-${item.id}`} id={item.id} src={toPublicPath(item.public_url)} onLoad={handleImageLoad} />;
           })}
         </>
       )}

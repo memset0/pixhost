@@ -1,5 +1,5 @@
 // 任务：展示图片详情并提供裁剪/色调/标签/删除操作
-// 方案：拉取 /images/{id} 元数据，并使用 blob 显示原图
+// 方案：拉取 /images/{id} 元数据，原图使用 public_url 相对路径展示
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Stack, Card, CardContent, Chip, Button, TextField, Slider, Accordion, AccordionSummary, AccordionDetails, Snackbar, CircularProgress, Skeleton } from '@mui/material';
@@ -10,6 +10,31 @@ import { useQuery } from '@tanstack/react-query';
 
 import api from '../api/client';
 import { useAuth } from './auth/AuthProvider';
+
+// 任务：详情页图片显示走相对路径，复制链接保留 hostname
+// 方案：public_url 绝对地址转 pathname，复制时再统一补 hostname
+const toPublicPath = (publicUrl?: string) => {
+  if (!publicUrl) return '';
+  if (publicUrl.startsWith('http://') || publicUrl.startsWith('https://')) {
+    const url = new URL(publicUrl);
+    return `${url.pathname}${url.search}`;
+  }
+  if (publicUrl.startsWith('//')) {
+    const url = new URL(`http:${publicUrl}`);
+    return `${url.pathname}${url.search}`;
+  }
+  if (publicUrl.startsWith('/')) return publicUrl;
+  return `/${publicUrl}`;
+};
+
+const toAbsolutePublicUrl = (publicUrl?: string) => {
+  if (!publicUrl) return '';
+  if (publicUrl.startsWith('http://') || publicUrl.startsWith('https://')) return publicUrl;
+  if (publicUrl.startsWith('//')) return `${window.location.protocol}${publicUrl}`;
+  const origin = window.location.origin.replace(/\/$/, '');
+  const path = publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`;
+  return `${origin}${path}`;
+};
 
 const ImageDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -58,6 +83,7 @@ const ImageDetailPage: React.FC = () => {
     setThumbLoaded(false);
     setFullLoaded(false);
     setThumbUrl(null);
+    setFileUrl(null);
   }, []);
 
   const loadThumbnail = useCallback(async () => {
@@ -66,14 +92,15 @@ const ImageDetailPage: React.FC = () => {
     setThumbUrl(`data:image/${format};base64,${dataBase64}`);
   }, [imageId]);
 
-  const loadFile = useCallback(async () => {
-    const response = await api.get(`/images/${imageId}/file`, { responseType: 'blob' });
-    const url = URL.createObjectURL(response.data);
-    setFileUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-  }, [imageId]);
+  // 任务：详情页原图使用相对静态路径并附带版本号刷新缓存
+  // 方案：public_url 转相对路径，缺失时回退 storage_relpath，再拼接 updated_at
+  const buildPublicFileUrl = useCallback((publicUrl?: string, storageRelpath?: string, updatedAt?: string) => {
+    const basePath = publicUrl ? toPublicPath(publicUrl) : storageRelpath ? `/images/${storageRelpath}` : '';
+    if (!basePath) return '';
+    if (!updatedAt) return basePath;
+    const joiner = basePath.includes('?') ? '&' : '?';
+    return `${basePath}${joiner}v=${encodeURIComponent(updatedAt)}`;
+  }, []);
 
   useEffect(() => {
     if (Number.isFinite(imageId)) {
@@ -81,15 +108,14 @@ const ImageDetailPage: React.FC = () => {
       setActiveEditor(null);
       resetImageLoading();
       loadThumbnail();
-      loadFile();
     }
-  }, [imageId, loadFile, loadThumbnail, resetImageLoading, resetPreview]);
+  }, [imageId, loadThumbnail, resetImageLoading, resetPreview]);
 
   useEffect(() => {
-    return () => {
-      if (fileUrl) URL.revokeObjectURL(fileUrl);
-    };
-  }, [fileUrl]);
+    if (!data || data.id !== imageId) return;
+    const url = buildPublicFileUrl(data.public_url, data.storage_relpath, data.updated_at);
+    setFileUrl(url || null);
+  }, [buildPublicFileUrl, data, imageId]);
 
   useEffect(() => {
     return () => {
@@ -285,21 +311,19 @@ const ImageDetailPage: React.FC = () => {
     resetImageLoading();
     await refetch();
     await loadThumbnail();
-    await loadFile();
   };
 
   const applyHue = async () => {
     await api.post(`/images/${imageId}/edit/hue`, { delta: hue });
     setNotice('色调调整完成');
     refetch();
-    loadFile();
   };
 
-  // 任务：详情页提供外链复制
-  // 方案：优先使用接口返回的 public_url，不存在时用 storage_relpath 拼出链接，并在无 Clipboard API 时用 textarea 兜底
+  // 任务：详情页提供外链复制，确保带 hostname
+  // 方案：public_url 统一补 hostname，缺失时用 storage_relpath 拼出绝对地址
   const buildPublicLink = () => {
     if (!data) return '';
-    if (data.public_url) return data.public_url;
+    if (data.public_url) return toAbsolutePublicUrl(data.public_url);
     if (data.storage_relpath) {
       const origin = window.location.origin.replace(/\/$/, '');
       return `${origin}/images/${data.storage_relpath}`;

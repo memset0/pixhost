@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     # Start Backend
     # Command: cd backend && python app.py
-    start_service("backend", "source .venv/bin/activate && python app.py", "backend", Colors.CYAN)
+    start_service("backend", ".venv/bin/python app.py", "backend", Colors.CYAN)
 
     # Start Frontend
     # Command: cd frontend && pnpm run dev

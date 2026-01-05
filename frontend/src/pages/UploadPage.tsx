@@ -22,6 +22,17 @@ const UploadPage: React.FC = () => {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [notice, setNotice] = useState('');
 
+  // 任务：上传成功复制链接时保证带 hostname
+  // 方案：public_url 若为相对路径则补上 window.location.origin
+  const toAbsolutePublicUrl = useCallback((publicUrl?: string) => {
+    if (!publicUrl) return '';
+    if (publicUrl.startsWith('http://') || publicUrl.startsWith('https://')) return publicUrl;
+    if (publicUrl.startsWith('//')) return `${window.location.protocol}${publicUrl}`;
+    const origin = window.location.origin.replace(/\/$/, '');
+    const path = publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`;
+    return `${origin}${path}`;
+  }, []);
+
   const updateItem = useCallback((id: string, patch: Partial<UploadItem>) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
@@ -75,8 +86,9 @@ const UploadPage: React.FC = () => {
   };
 
   const copyLink = async (url?: string) => {
-    if (!url) return;
-    await navigator.clipboard.writeText(url);
+    const link = toAbsolutePublicUrl(url);
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
     setNotice('已复制链接到剪贴板');
     setTimeout(() => setNotice(''), 1500);
   };

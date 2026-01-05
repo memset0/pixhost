@@ -15,6 +15,9 @@ export default defineConfig({
     allowedHosts: ["memset0.cn"],
     proxy: {
       "/api": backendOrigin,
+      // 任务：开发环境下让 /images 走后端服务，保证图片直链可用
+      // 方案：Vite proxy 追加 /images 指向同一后端
+      "/images": backendOrigin,
     },
   },
   preview: {
