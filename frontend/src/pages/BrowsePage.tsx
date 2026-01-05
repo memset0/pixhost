@@ -422,6 +422,9 @@ const BrowsePage: React.FC = () => {
   const [metas, setMetas] = useState<Record<string, WaterfallMeta>>({});
   const reflowedColsRef = useRef(cols);
   const [page, setPage] = useState(1);
+  // 任务：瀑布流自动加载需等待当前图片加载完成，并在底部时继续请求下一页
+  // 方案：IntersectionObserver 只记录哨兵是否可见，结合已加载计数判断后再触发 fetchNextPage
+  const [isSentinelInView, setIsSentinelInView] = useState(false);
 
   const waterfallQuery = useInfiniteQuery({
     queryKey: ["images", "waterfall", tags, tagMode, layoutReloadVersion],
@@ -447,6 +450,14 @@ const BrowsePage: React.FC = () => {
     return listQuery.data?.items || [];
   }, [layout, listQuery.data, waterfallQuery.data]);
 
+  const waterfallLoadedCount = useMemo(() => {
+    if (layout !== "waterfall") return 0;
+    return items.reduce((count: number, item: any) => count + (metas[item.id]?.loaded ? 1 : 0), 0);
+  }, [items, metas, layout]);
+
+  const allWaterfallImagesLoaded =
+    layout === "waterfall" && items.length > 0 && waterfallLoadedCount === items.length;
+
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / PAGE_SIZE));
   }, [listQuery.data]);
@@ -456,19 +467,36 @@ const BrowsePage: React.FC = () => {
   }, [tags, tagMode]);
 
   useEffect(() => {
-    if (layout !== "waterfall") return;
+    if (layout !== "waterfall") {
+      setIsSentinelInView(false);
+      return;
+    }
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
+    setIsSentinelInView(false);
 
     const observer = new IntersectionObserver((entries) => {
       const [entry] = entries;
-      if (entry.isIntersecting && waterfallQuery.hasNextPage && !waterfallQuery.isFetchingNextPage) {
-        waterfallQuery.fetchNextPage();
-      }
+      setIsSentinelInView(entry.isIntersecting);
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [layout, waterfallQuery.hasNextPage, waterfallQuery.isFetchingNextPage, waterfallQuery.fetchNextPage]);
+  }, [layout]);
+
+  useEffect(() => {
+    if (layout !== "waterfall") return;
+    if (!isSentinelInView) return;
+    if (!allWaterfallImagesLoaded) return;
+    if (!waterfallQuery.hasNextPage || waterfallQuery.isFetchingNextPage) return;
+    waterfallQuery.fetchNextPage();
+  }, [
+    layout,
+    isSentinelInView,
+    allWaterfallImagesLoaded,
+    waterfallQuery.hasNextPage,
+    waterfallQuery.isFetchingNextPage,
+    waterfallQuery.fetchNextPage,
+  ]);
 
   // 任务：图片无固定高度，保持原始宽高比并按最矮列放置，列变化时重新分配
   // 方案：记录图片加载得到的宽高比，计算列宽，按数据顺序把已加载图片落到当前高度最矮的列（同高取最左），列数变化时整体按顺序重排；所有展示节点使用 Grow 动画出现
